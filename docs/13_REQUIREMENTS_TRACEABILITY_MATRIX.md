@@ -1,7 +1,7 @@
 # 13｜需求追溯矩阵
 
 状态：`APPROVED_FOR_BUILD`  
-版本：V0.4  
+版本：V0.5
 日期：2026-07-21  
 文档 Owner：Product Owner + QA Owner  
 规则：P0 任一行缺少设计、数据/API 或验收引用，不得进入开发；实现 PR 必须引用对应 ID。
@@ -32,7 +32,7 @@
 | ISO-MUST-005 独立身份 | vNext user/session/secret | AT-ISO-003；AT-SEC-004/012 | WP-01 逻辑隔离与配置 fail-closed 已自动化；staging/prod 物理 identity config audit `NOT_RUN` |
 | ISO-MUST-006 无兼容路由 | 04 号唯一 route manifest | AT-ISO-004；AT-UX-009 | route scan |
 | ISO-MUST-007 独立环境 | 资源清单与命名空间 | environment audit | signed env manifest |
-| ISO-MUST-008 独立部署 | vNext CI/image/runtime | AT-ISO-001/007 | WP-07 mainline 在 `push main` 运行完整门禁、推送三个精确 SHA GHCR 镜像、远端验证 digest 并上传 manifest/SBOM/TaskVersion；run 29803354837 在可移植性缺口处失败且 GHCR 全部 skipped，修复候选待主任务重跑；部署仍 `NOT_RUN`；见 24 |
+| ISO-MUST-008 独立部署 | vNext CI/image/runtime | AT-ISO-001/007 | WP-07 run 29804468895 在实现 SHA `eb4035e…` 完成 mainline、三个精确 SHA GHCR 镜像、远端 digest 二次验证与 manifest/SBOM/TaskVersion 上传；`registry_push=VERIFIED`，protected main/deployment 仍 `NOT_RUN`；见 24 |
 | ISO-MUST-009 独立可观测 | vNext log/APM/revision | AT-ARCH-005；告警演练 | WP-06 暴露 release/health/worker/backlog/dead 并完成本地告警模拟；外部 APM/告警 `NOT_RUN`；见 22 |
 | ISO-MUST-010 vNext 内回滚 | N ↔ N+1 compatible rollout | AT-ISO-007 | WP-06 隔离恢复后 0010→0009→0010 与事实指纹本地 PASS；生产回滚 `NOT_RUN`；见 22 |
 | ISO-MUST-011 离线导入 | signed export + importer | AT-ISO-006；AT-DATA-007 | WP-06 HMAC/checksum/dry-run/幂等/冲突隔离/不可变 ledger 本地 PASS；真实旧系统包 `NOT_RUN`；见 22 |
@@ -144,4 +144,4 @@ CI 后续应验证：
 
 | 工作包 | 需求/验收 | 本地机器证据 | 外部边界 | 当前结论 |
 | --- | --- | --- | --- | --- |
-| WP-07 候选基线与软件供应链 | ISO-MUST-001/002/008；REQ-NFR-001/010；AT-ISO-001；AT-ARCH-005/007 | `make ci-fast`、`make ci-main`、`make candidate-package`、`make candidate-registry-check`；完整 SHA/OpenAPI/migration/config/TaskVersion、三镜像 local digest/SPDX SBOM，以及 CI-only canonical GHCR push + remote digest verify 合同；见 24 | 首次远端 run 29803354837 FAIL：无 `rg` 的隔离扫描误通过，HTTP 负向门禁依赖预运行 API；GHCR/工件均 skipped。V0.4 本地修复候选待主任务复验/重跑，受保护 main 与 registry 回执仍未完成 | `CANDIDATE_BASELINE_READY` 仍取决于修复后远端全绿与外部证据 |
+| WP-07 候选基线与软件供应链 | ISO-MUST-001/002/008；REQ-NFR-001/010；AT-ISO-001；AT-ARCH-005/007 | `make ci-fast`、`make ci-main`、`make candidate-package`、`make candidate-registry-check`；完整 SHA/OpenAPI/migration/config/TaskVersion、三镜像 local digest/SPDX SBOM，以及 CI-only canonical GHCR push + remote digest verify 合同；见 24 | run 29804468895 PASS；GHCR 三镜像与 registry-mode artifact 已交叉复验。Private 仓库 branch protection API 因当前套餐返回 403；部署仍 `NOT_RUN` | `REMOTE_CI_AND_REGISTRY_VERIFIED`；`CANDIDATE_BASELINE_READY` 仍取决于 protected main 或获批治理例外 |

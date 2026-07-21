@@ -1,24 +1,24 @@
 # 24｜WP-07 候选基线与软件供应链 As-Built
 
 状态：`AS_BUILT`  
-版本：V0.4
+版本：V0.5
 日期：2026-07-21  
 验证环境：本地 Docker 29.6.1 / Compose 5.2.0 / Buildx 0.35、Node.js 24.16.0、PostgreSQL 18.1、Python 3.14 容器  
-候选身份：`codex/wp-07-candidate-baseline` 的 clean 40 字符 `HEAD`；精确 SHA 与本地镜像 digest 写入 `artifacts/wp07-candidate/release-manifest.json`，避免在同一 Git commit 中自引用  
-发布状态：`NO_GO`。本文证明 WP-07 本地候选和 GHCR 远端闭环合同；实际 push/main 保护/远端 CI 由主任务复验后执行，本文不是 staging/production 或发布批准证据。
+候选身份：远端 `main` 的 clean 40 字符 `HEAD`；精确 SHA、镜像 digest 与外部状态写入每次 mainline run 的 `release-manifest.json`，避免在同一 Git commit 中自引用
+发布状态：`NO_GO`。本文证明 WP-07 本地候选、远端 CI 和 GHCR 闭环；私有仓库的 `main` 保护仍被 GitHub 账户套餐阻塞，本文不是 staging/production 或发布批准证据。
 
 ## 1. 范围、追溯与非范围
 
 本轮只实施 WP-07，追溯到 `ISO-MUST-001/002/008`、`REQ-NFR-001/010`、`AT-ISO-001`、`AT-ARCH-005/007`。没有修改业务状态机、API 行为、数据库 schema 或 TaskVersion 内容，没有创建/派发 WP-08。
 
-本独立任务不执行 push/PR、GitHub main 保护与协作者修改、云资源或部署。用户已授权主任务在复验最终 SHA 后初次 push `main` 并执行 GHCR/保护规则闭环；在该动作实际发生前 registry 与远端 CI 仍保持 `NOT_RUN`。staging/production、真人 UAT、外部通知、物理 ACL 和发布签署继续非范围。
+独立任务不执行 push/PR、GitHub main 保护与协作者修改、云资源或部署；主任务已按用户授权复验并推送最终实现 SHA，完成远端 mainline 与 GHCR 闭环。staging/production、真人 UAT、外部通知、物理 ACL 和发布签署继续非范围；把私有仓库公开或购买 GitHub 套餐也不属于本授权。
 
 ## 2. 实施结果
 
 | 缺口 | 仓库内关闭方式 |
 | --- | --- |
 | 无可审查 Git 基线 | 本地 `codex/wp-07-candidate-baseline` 首个候选 commit；manifest 生成前强制 full SHA + clean tree |
-| 无责任人合同 | `.github/CODEOWNERS` 将默认、CI、contract、migration 与追溯矩阵归属 `@muchenai2024-creator`；远端 enforcement 待授权 |
+| 无责任人合同 | `.github/CODEOWNERS` 将默认、CI、contract、migration 与追溯矩阵归属 `@muchenai2024-creator`；私有仓库的远端 enforcement 被当前 GitHub 套餐阻塞 |
 | CI 未分层 | `.github/workflows/ci.yml` 运行 `make ci-fast`，10 分钟 timeout；`mainline.yml` 运行 `make ci-main` + candidate package/GHCR publish；Actions 固定到 40 字符 SHA，quick 仅 `contents: read`，mainline 最小增加 `packages: write` |
 | 空环境路径不完整 | `ci-fast` 从 `npm ci` 开始并执行 source/legacy/secret/dependency、空库 migration、60 tests、OpenAPI、lint/type；`ci-main` 再执行持久 migration、Web production build、Compose HTTP 权限负向和 fail-closed NO_GO |
 | 供应链不可绑定 | Python/Node/PostgreSQL base 使用 tag + registry digest；Gitleaks/Syft 扫描镜像使用固定 digest；API/Web/Worker 镜像写 OCI revision label |
@@ -61,6 +61,10 @@ V0.4 记录首个远端 mainline 证据：[run 29803354837](https://github.com/m
 
 该 run 的 candidate package、GHCR 登录、三镜像 push/远端 digest 验证和 artifact 上传步骤全部为 `skipped`，因此它没有产生任何 registry `VERIFIED` 证据；V0.4 修复仍只形成未推送的本地候选，待主任务复验新 SHA 后重新触发远端 mainline。
 
+V0.5 记录修复后的远端证据：[run 29804468895](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29804468895) 在实现 SHA `eb4035efe2d8b08f4025e643fd53fabf3dfc0d58` 全绿，用时 5 分 26 秒；`make ci-main`、候选打包、GHCR 登录、三镜像 push、远端 immutable digest 二次验证和 artifact 上传全部成功。artifact `wp07-candidate-eb4035efe2d8b08f4025e643fd53fabf3dfc0d58` 的服务端 zip digest 为 `sha256:cc415de5…dbbea`，下载后 manifest/SBOM/TaskVersion 哈希全部复验一致；manifest 状态为 `registry_push=VERIFIED`、`protected_main=NOT_RUN`、`deployment=NOT_RUN`。
+
+远端 digest 分别为 API `sha256:475a0a47…b1881`、Web `sha256:95e2e673…d596e`、Worker `sha256:e9e836ee…98809`，且只存在完整 SHA 标签合同，不生成 `latest`。对 `main` branch protection 的 GitHub API 复验返回 HTTP 403：Private 仓库需要升级 GitHub Pro 或改为 Public；后者违反已锁定的 Private 决策，因此未执行。该外部限制是当前唯一 WP-07 退出阻塞。
+
 ## 4. 软件供应链与安全复核
 
 按 `security-best-practices` 完整读取并复核 Python/FastAPI、Next.js、React 与通用 Web 指导，结果：
@@ -98,9 +102,10 @@ V0.4 记录首个远端 mainline 证据：[run 29803354837](https://github.com/m
 | GHCR dry-run/static | PASS | 三个 canonical package + 完整 SHA tag；`registry_push=NOT_RUN`；workflow YAML 与全部 action 40 字符 SHA 合同通过；无登录/push |
 | runtime OpenAPI equality | PASS | 非 root API 容器读取 0444 contract；1.54s |
 | dependency audit | PASS | npm 0；pip 0 known；首次含 registry/漏洞库等待 103.78s |
-| `make ci-fast` | PASS | V0.2 最终套件 60 tests（6.75s）+ 全部快速层；123.04s，低于 10 分钟目标 |
-| `make ci-main` | PASS | 53 tests（8.08s）、0009↔0010、Web production build、HTTP permission negative 与 expected `NO_GO`；182.96s |
-| `make candidate-package` | 提交后生成 | 必须在 clean candidate commit 上运行；manifest 自校验结果随工件和最终交接提供 |
+| `make ci-fast` | PASS | V0.4 最终套件 79 tests + 全部快速层；本地 120.39s，低于 10 分钟目标 |
+| `make ci-main` | PASS | 79 tests、0009↔0010、Web production build、自举式 HTTP permission negative 与 expected `NO_GO`；本地 137.80s，远端 run 29804468895 PASS |
+| `make candidate-package` | PASS | 最终实现 SHA 本地 154.72s；远端重建、三份 SPDX SBOM、registry manifest 与 artifact 上传全部 PASS |
+| GHCR remote evidence | PASS | API `475a0a47…`、Web `95e2e673…`、Worker `e9e836ee…`；远端 immutable digest 二次 inspect 与下载工件哈希一致 |
 
 定向测试暴露并修复两项真实问题：首次把治理文件检查放进 API 容器测试，但镜像有意不包含 `.github`，因此将治理检查留在宿主 trace gate；其次原始 OpenAPI 文件权限为 0600，非 root 容器无法比较，改为只在镜像副本中把目录设 0555、公开合同设 0444，运行身份仍为 UID 10001。没有通过 root 运行应用或跳过检查转绿。
 
@@ -120,11 +125,12 @@ V0.4 记录首个远端 mainline 证据：[run 29803354837](https://github.com/m
 - `muchen-journey-ops` V0.2 `doctor` 对本 Greenfield 仓库返回 `Not a compatible Muchen Journey repository`；沿用 10/22 号文档记录为工具债务，未复制旧 P1 runbook 或创建第二发布路径。
 - 主任务复验拒绝了 `d4bbbea728e20d2d5d1f7a0dd77f98acc1da0701`，原因是该版未绑定 `task-versions.json` 且未精确校验 `external_status`；V0.2 已加入对应 fail-closed 校验与负向测试，该 SHA 不再作为最终候选。
 - 当前 Git 基线来自此前全部未跟踪的用户工作树，因此首个 commit 相对空树会显示整个仓库为新增；WP-07 特定修改清单必须与完整初始基线 stat 分开审查。
-- 本地 SBOM 和 local image digest 可复现，但 GitHub workflow 尚未在远端执行；受保护 main、required checks、CODEOWNERS enforcement 与 registry digest 均无远端证据。
-- GHCR 三 package、远端 digest 和 registry-mode manifest 必须由主任务初次 push 后的 mainline run 产生；本地不得把 dry-run 或 local digest 写成 `VERIFIED`。
+- GitHub workflow 与 GHCR registry-mode manifest 已有远端 `VERIFIED` 证据；个人 `gh` token 没有 `read:packages` scope，主任务没有扩大授权，而是用 Actions push/immutable-inspect 日志和下载工件交叉复验。
+- 私有仓库的 branch protection API 返回 HTTP 403；在保持 Private 的锁定条件下，required checks 与 CODEOWNERS enforcement 尚不能启用。必须由用户选择升级 GitHub Pro，或显式批准有时限、可追踪的治理例外；不得把普通 `main` 写成受保护 `main`。
+- GitHub 对当前 checkout/setup-node/upload-artifact 固定版本给出 Node.js 20 deprecated、强制 Node 24 的维护注记；本次运行成功，后续需在不放松 40 字符 action pin 的前提下升级固定版本。
 - 所有 staging/production、真实 UAT、物理 ACL、异机恢复和发布批准仍保持 `NOT_RUN/NO_GO`。
 
-因此本地结论是：`LOCAL_CANDIDATE_PACKAGE_READY_FOR_MAIN_TASK_REVIEW`。在主任务完成独立复验、执行已授权 push、建立/验证受保护 main 并取得远端 CI/GHCR 结果前，WP-07 整体退出词 `CANDIDATE_BASELINE_READY` 为 **否**；不得启动 WP-08。
+因此当前结论是：`REMOTE_CI_AND_REGISTRY_VERIFIED`。远端 CI/GHCR 已关闭，但 `protected_main` 仍为 `NOT_RUN`；WP-07 整体退出词 `CANDIDATE_BASELINE_READY` 仍为 **否**。用户解决套餐限制或显式批准治理例外前，不得启动 WP-08。
 
 ## 8. 关键文件
 
@@ -141,4 +147,4 @@ V0.4 记录首个远端 mainline 证据：[run 29803354837](https://github.com/m
 - `compose.yaml`
 - `docs/13_REQUIREMENTS_TRACEABILITY_MATRIX.md`
 
-本独立任务不会 push、创建 PR、修改 GitHub 设置、创建云资源或部署任何环境；获授权的远端动作由主任务复验最终 SHA 后执行。
+独立任务没有 push、创建 PR、修改 GitHub 设置、创建云资源或部署环境；获授权的远端写入由主任务完成并复验，未扩大到公开仓库或购买套餐。

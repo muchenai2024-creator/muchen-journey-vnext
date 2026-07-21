@@ -30,7 +30,7 @@ WP-07 → WP-08 → WP-09 → WP-10 → WP-11
 
 以下不是重开 DEC-001～016，而是把已批准方向替换为可执行的物理值：
 
-1. [x] Git 远端目标已锁定并完成私有仓库创建与本地 `origin` 绑定，见 2.1；保护规则和协作者仍在 WP-07 执行；
+1. [x] Git 远端目标已锁定并完成私有仓库创建、本地 `origin` 绑定、`main` push 和远端 CI/GHCR 闭环，见 2.1；私有仓库保护规则被当前 GitHub 套餐阻塞；
 2. staging/prod 部署平台、区域、域名与证书 Owner；
 3. PostgreSQL、S3-compatible storage、secret/KMS、日志/APM/告警供应商；
 4. vNext 独立飞书应用、回调域名、应用 Owner 和测试租户；
@@ -55,7 +55,7 @@ WP-07 → WP-08 → WP-09 → WP-10 → WP-11
 
 锁定理由：02/10/11 号文档要求独立仓库、保护分支、CI/CD 和不可变候选；当前已连接 GitHub profile 为 `muchenai2024-creator`，没有可用 organization 安装。Private 是默认最小暴露选择，后续如需迁入 organization，必须在首个正式 RC 前以独立治理变更处理，不能临时切换候选来源。
 
-当前事实：已于 2026-07-21 使用 GitHub 账号 `muchenai2024-creator` 创建 Private 仓库 `muchenai2024-creator/muchen-journey-vnext`，并将本地 `origin` 绑定到 Canonical URL。WP-07 首个候选 SHA `166252c8172da1a64abf02cf7455d1879c680afd` 已由主任务推送到远端 `main`；首次 mainline run 29803354837 在 `make ci-main` 因 runner 可移植性缺口失败，GHCR 与工件步骤均未执行。修复候选仍由独立任务本地形成并交主任务复验；分支保护、registry 回执和完整远端门禁证据仍未完成。
+当前事实：已于 2026-07-21 使用 GitHub 账号 `muchenai2024-creator` 创建 Private 仓库 `muchenai2024-creator/muchen-journey-vnext`，并将本地 `origin` 绑定到 Canonical URL。首次 mainline run 29803354837 暴露并固定两项 runner 可移植性缺口；修复实现 SHA `eb4035efe2d8b08f4025e643fd53fabf3dfc0d58` 的 run 29804468895 已全绿，三镜像完整 SHA 标签、远端 digest、registry-mode manifest 与下载工件均复验通过。私有仓库 branch protection API 返回 HTTP 403，要求升级 GitHub Pro 或改为 Public；Public 违反已锁定决策，故保护规则仍 `NOT_RUN`。
 
 ## 3. 工作包总览
 
@@ -102,11 +102,11 @@ WP-07 → WP-08 → WP-09 → WP-10 → WP-11
 
 ### 权限边界
 
-远端仓库创建和本地 `origin` 绑定已获授权并完成；push、保护分支、协作者或其他 GitHub 设置仍属于后续外部写入，执行前需要用户明确授权。
+远端仓库创建、本地 `origin` 绑定和 WP-07 `main`/GHCR 写入已获授权并完成；保护分支因 GitHub 套餐不可用，协作者或其他 GitHub 设置仍属于后续外部写入，执行前需要用户明确授权。
 
 ### 本地 As-Built 状态
 
-WP-07 本地实现与证据见 24 号文档：quick/mainline Make 与 GitHub Actions 合同、固定摘要、dependency/secret/legacy 扫描、三镜像 SBOM 和 release manifest 入口均已落地。首次远端 mainline 已暴露无 `rg` 扫描与预运行 API 依赖两项可移植性缺口，且在 GHCR 前失败；当前 V0.4 修复仍禁止由独立任务 push 或修改 GitHub 设置。主任务复验新 SHA、重跑远端门禁、取得 registry digest 并完成受保护 `main` 前不得写成最终 `CANDIDATE_BASELINE_READY`，更不得启动 WP-08。
+WP-07 实现与证据见 24 号文档：quick/mainline Make 与 GitHub Actions 合同、固定摘要、dependency/secret/legacy 扫描、三镜像 SBOM、release manifest、远端 CI 与 GHCR digest 均已落地并复验。独立任务未做远端写入，主任务已按授权完成；当前只剩受保护 `main` 因 GitHub Private 套餐限制无法启用。在用户升级套餐或显式批准治理例外前，不得写成最终 `CANDIDATE_BASELINE_READY`，更不得启动 WP-08。
 
 ## 5. WP-08｜物理独立 Staging 基座
 
