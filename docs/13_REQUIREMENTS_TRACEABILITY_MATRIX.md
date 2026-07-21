@@ -1,7 +1,7 @@
 # 13｜需求追溯矩阵
 
 状态：`APPROVED_FOR_BUILD`  
-版本：V0.5
+版本：V0.6
 日期：2026-07-21  
 文档 Owner：Product Owner + QA Owner  
 规则：P0 任一行缺少设计、数据/API 或验收引用，不得进入开发；实现 PR 必须引用对应 ID。
@@ -25,7 +25,7 @@
 
 | 要求 | 架构/交付控制 | 自动/人工验收 | 发布证据 |
 | --- | --- | --- | --- |
-| ISO-MUST-001 独立源码 | 新 Git repo；无 submodule/workspace 引用 | AT-ISO-001；dependency/import scan | WP-07 候选 commit、CODEOWNERS、clean-tree preflight 与 legacy/isolation scan；无 `rg` 时以严格 `grep` fallback 且扫描错误 fail closed；main 保护仍由主任务执行；见 24 |
+| ISO-MUST-001 独立源码 | 新 Git repo；无 submodule/workspace 引用 | AT-ISO-001；dependency/import scan | WP-07 候选 commit、CODEOWNERS、clean-tree preflight 与 legacy/isolation scan；无 `rg` 时以严格 `grep` fallback 且扫描错误 fail closed；Public `main` 保护已由 API 验证；见 24 |
 | ISO-MUST-002 独立依赖 | 公开依赖 + vNext 自有模块 | lockfile/SBOM/forbidden import | WP-07 固定 runtime/base/扫描器摘要，npm/pip audit、secret scan、三镜像 SPDX SBOM 与 canonical GHCR SHA-tag/digest 合同；见 24 |
 | ISO-MUST-003 独立 DB | 新 DB/role；0001..0010 migration | AT-ISO-005；DB ACL/空库重建 | 空库 0001→0010 与既有事实 0009↔0010 本地 PASS；物理 ACL `NOT_RUN`；见 22 |
 | ISO-MUST-004 无旧运行时 | egress allowlist；无旧 SDK/URL | AT-ISO-002；network deny | egress policy/report |
@@ -144,4 +144,4 @@ CI 后续应验证：
 
 | 工作包 | 需求/验收 | 本地机器证据 | 外部边界 | 当前结论 |
 | --- | --- | --- | --- | --- |
-| WP-07 候选基线与软件供应链 | ISO-MUST-001/002/008；REQ-NFR-001/010；AT-ISO-001；AT-ARCH-005/007 | `make ci-fast`、`make ci-main`、`make candidate-package`、`make candidate-registry-check`；完整 SHA/OpenAPI/migration/config/TaskVersion、三镜像 local digest/SPDX SBOM，以及 CI-only canonical GHCR push + remote digest verify 合同；见 24 | run 29804468895 PASS；GHCR 三镜像与 registry-mode artifact 已交叉复验。Private 仓库 branch protection API 因当前套餐返回 403；部署仍 `NOT_RUN` | `REMOTE_CI_AND_REGISTRY_VERIFIED`；`CANDIDATE_BASELINE_READY` 仍取决于 protected main 或获批治理例外 |
+| WP-07 候选基线与软件供应链 | ISO-MUST-001/002/008；REQ-NFR-001/010；AT-ISO-001；AT-ARCH-005/007 | `make ci-fast`、`make ci-main`、`make candidate-package`、`make candidate-registry-check`；完整 SHA/OpenAPI/migration/config/TaskVersion、三镜像 local digest/SPDX SBOM，以及 CI-only canonical GHCR push + remote digest verify 合同；见 24 | run 29804985537 PASS；GHCR 三镜像与 registry-mode artifact 已交叉复验。Public `main` 强制 PR + `WP-07 / quick`，管理员受约束，禁止 force-push/删除；部署仍 `NOT_RUN` | `CANDIDATE_BASELINE_READY`；可进入 WP-08，整体发布仍 `NO_GO` |

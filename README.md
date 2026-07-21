@@ -15,7 +15,7 @@
 - WP-04：按 explicit reviewer + organization/object scope 裁剪的评审队列与详情、固定材料完整性、四维结构化 Rubric、并发安全的 start/finalize、不可变 Evaluation 历史，以及 Reviewer→Learner 修订/完成状态闭环；
 - WP-05：评审通过后原子生成不可变 Outcome 与唯一 Handoff，事务 Outbox、本地 NotificationDelivery worker 的租约/重试/去重/死信合同，按 organization/owner/object 裁剪的跨域时间线，以及完整 Learner 结果页；
 - WP-06：版本化 Task/config 只读运营视图，带角色/组织/对象 scope、原因、幂等键与 expected revision 的 reviewer assignment / enrollment cancel 命令，安全裁剪审计，revision/health/worker/observability 状态，签名离线 fixture 导入，以及本地加密备份、隔离恢复、回滚/告警模拟和 fail-closed 发布门禁；
-- WP-07：本地候选基线、CODEOWNERS、分层 CI、固定摘要的基础/扫描镜像、依赖/secret/旧引用扫描、三进程 SPDX SBOM，以及绑定完整 Git SHA、OpenAPI hash、migration head、config schema 和 TaskVersion 清单的 release manifest；已增加仅在 `push main` 使用 `GITHUB_TOKEN` 向三个 canonical GHCR package 推送精确 SHA tag、远端解析 digest 并升级 manifest 的合同。该远端写入已授权由主任务复验后执行，本地仍为 `NOT_RUN`；
+- WP-07：候选基线、CODEOWNERS、分层 CI、固定摘要的基础/扫描镜像、依赖/secret/旧引用扫描、三进程 SPDX SBOM，以及绑定完整 Git SHA、OpenAPI hash、migration head、config schema 和 TaskVersion 清单的 release manifest；远端 mainline 已向三个 canonical GHCR package 推送精确 SHA tag、验证 immutable digest 并上传工件。仓库按用户明确决策设为 Public，`main` 强制 PR、`WP-07 / quick`、线性历史、会话解决并禁止 force-push/删除，管理员同样受约束；
 - 未实施生产/预发布部署、真实旧系统数据导入、真实 Feishu/邮件/告警、物理 ACL、异机/生产恢复、真人 UAT 或发布签署；这些项目仍为 `NOT_RUN`，当前发布判定必须是 `NO_GO`。
 
 从 [文档地图](docs/00_DOCUMENT_MAP_AND_GOVERNANCE.md) 开始阅读。真人 UAT、物理 staging/production 资源、恢复/回滚演练与发布签署仍是 G4/G5 独立门禁，当前不是发布 GO。
