@@ -38,8 +38,9 @@
 | 20 | [WP-04 Reviewer 工作台与结论构建证据](20_WP04_REVIEWER_WORKBENCH_EVALUATION_EVIDENCE.md) | WP-04 的授权队列、固定材料、结构化结论、不可变历史与 Learner 状态闭环实际证明了什么？ | REQ-BR-005 本地证据可复现；真人 Reviewer/UAT、校准、物理环境和发布门禁仍独立 |
 | 21 | [WP-05 结果、交接、通知与历史构建证据](21_WP05_OUTCOME_HANDOFF_NOTIFICATION_TIMELINE_EVIDENCE.md) | WP-05 的不可变 Outcome/Handoff、可重试通知 worker、完整结果页与跨域时间线实际证明了什么？ | REQ-BR-007/009/010 本地证据可复现；真实通知/AI、真人 UAT、物理环境和发布门禁仍独立 |
 | 22 | [WP-06 受控运营、离线导入、恢复与发布门禁构建证据](22_WP06_CONTROLLED_OPERATIONS_IMPORT_RECOVERY_RELEASE_EVIDENCE.md) | WP-06 的有意图运营命令、签名导入、安全审计、运行状态、本地灾备及 fail-closed 发布判断实际证明了什么？ | REQ-BR-008、ISO-MUST-009/010/011 与 NFR-009/010/011 本地证据可复现；真实导入、真人 UAT、真实通知、物理环境、异机恢复和发布签署仍 `NOT_RUN`/`NO_GO` |
-| 23 | [G4–G6 下一批工作包定义](23_G4_G6_NEXT_WORK_PACKAGES.md) | WP-07～WP-15 如何按单一 WIP 推进候选、试点与正式切换？ | 整体仍 `DRAFT_FOR_APPROVAL`；本轮仅 WP-07 获独立任务授权，不能据此启动 WP-08 |
-| 24 | [WP-07 候选基线与软件供应链构建证据](24_WP07_CANDIDATE_BASELINE_SUPPLY_CHAIN_EVIDENCE.md) | 本地候选、分层 CI、扫描、SBOM 与 release manifest 实际证明了什么？ | 本地候选工件可复现；远端 push/main 保护/CI 执行/registry digest 仍为外部未决项 |
+| 23 | [G4–G6 下一批工作包定义](23_G4_G6_NEXT_WORK_PACKAGES.md) | WP-07～WP-15 如何按单一 WIP 推进候选、试点与正式切换？ | WP-07 已关闭；WP-08～WP-13 已获按单一 WIP 顺序推进授权，但云/域名/secret/真实集成等写入仍要求精确供应商与环境授权 |
+| 24 | [WP-07 候选基线与软件供应链构建证据](24_WP07_CANDIDATE_BASELINE_SUPPLY_CHAIN_EVIDENCE.md) | 本地候选、分层 CI、扫描、SBOM 与 release manifest 实际证明了什么？ | 候选、远端 CI、GHCR digest 与受保护 main 已复验；staging/production 仍不在该证据范围 |
+| 25 | [WP-08 Definition of Ready 构建证据](25_WP08_DEFINITION_OF_READY_EVIDENCE.md) | 物理 staging 写入前的 Git、浏览器、迁移、fixture、冷启动、Ops 与证据边界是否真实可重复？ | 本地 DoR 证据可复现；不等同于物理 staging 已创建、部署或通过隔离验收 |
 
 ## 3. 权威顺序
 

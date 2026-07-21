@@ -21,6 +21,7 @@ COPY apps/worker ./apps/worker
 COPY migrations ./migrations
 COPY alembic.ini ./
 COPY contracts ./contracts
+COPY config ./config
 RUN chmod 0555 contracts && chmod 0444 contracts/openapi.json
 COPY tests ./tests
 COPY scripts ./scripts

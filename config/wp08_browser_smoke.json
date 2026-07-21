@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "browser": "chromium",
+  "browser_revision": "1232",
+  "evidence_directory": "output/playwright/wp08",
+  "path": "/ops",
+  "viewports": [
+    {"name": "desktop", "width": 1440, "height": 900},
+    {"name": "tablet", "width": 768, "height": 1024},
+    {"name": "mobile", "width": 390, "height": 844}
+  ],
+  "checks": [
+    "http_status",
+    "console_error",
+    "horizontal_overflow",
+    "focus_keyboard"
+  ]
+}

@@ -11,8 +11,10 @@ WP07_WORKER_GHCR_IMAGE := $(WP07_GHCR_PREFIX)-worker:$(WP07_SHA)
 WP07_GITLEAKS_IMAGE := ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
 WP07_SYFT_IMAGE := anchore/syft@sha256:b4f1df79f97b817682d8b5ff941eb6bfe74f6172553a5e312c75bbc2eabc405c
 WP07_PYTHON_IMAGE := python:3.14.6-slim@sha256:cea0e6040540fb2b965b6e7fb5ffa00871e632eef63719f0ea54bca189ce14a6
+WP08_LOCAL_DB_PORT ?= 35432
+WP08_LOCAL_API_PORT ?= 38000
 
-.PHONY: bootstrap up down migrate seed api-test migration-check web-install web-static web-check openapi-check isolation-check legacy-reference-scan traceability-check secret-scan dependency-audit ci-fast ci-main candidate-preflight candidate-images candidate-task-versions candidate-sboms candidate-package candidate-registry-check candidate-registry-push http-negative-check verify wp06-backup wp06-drill wp06-alert-sim release-gate release-gate-check
+.PHONY: bootstrap up down migrate seed api-test migration-check migration-static-check fixture-manifest web-install web-static web-check openapi-check isolation-check legacy-reference-scan traceability-check secret-scan dependency-audit ci-fast ci-main candidate-preflight candidate-images candidate-task-versions candidate-sboms candidate-package candidate-registry-check candidate-registry-push http-negative-check verify wp06-backup wp06-drill wp06-alert-sim release-gate release-gate-check wp08-cold-preflight wp08-evidence-init wp08-evidence-check wp08-git-check browser-preflight browser-smoke
 
 bootstrap:
 	docker compose build api worker
@@ -38,7 +40,13 @@ api-test:
 	docker compose run --rm --no-deps -e DATABASE_URL=postgresql+psycopg://journey_next:journey_next_test@db-test:5432/journey_next_test api sh -ec 'alembic upgrade head; python -m journey_api.seed; pytest -q'
 
 migration-check:
-	python3 scripts/wp06_ops.py migration-check
+	MJ_DB_PORT=$${MJ_DB_PORT:-$(WP08_LOCAL_DB_PORT)} python3 scripts/wp06_ops.py migration-check
+
+migration-static-check:
+	python3 scripts/wp08_readiness.py migration-static
+
+fixture-manifest:
+	python3 scripts/wp08_readiness.py fixture-manifest --output artifacts/wp08/fixture-manifest.json
 
 web-install:
 	cd apps/web && npm ci
@@ -124,8 +132,8 @@ candidate-registry-push: candidate-registry-check
 	python3 scripts/wp07_candidate.py registry --manifest $(WP07_ARTIFACT_DIR)/release-manifest.json --registry-image api=$(WP07_API_GHCR_IMAGE) --registry-image web=$(WP07_WEB_GHCR_IMAGE) --registry-image worker=$(WP07_WORKER_GHCR_IMAGE)
 
 http-negative-check:
-	docker compose up --build -d --wait db api
-	python3 scripts/wp06_ops.py http-negative
+	MJ_DB_PORT=$${MJ_DB_PORT:-$(WP08_LOCAL_DB_PORT)} MJ_API_PORT=$${MJ_API_PORT:-$(WP08_LOCAL_API_PORT)} docker compose up --build -d --wait db api
+	MJ_API_PORT=$${MJ_API_PORT:-$(WP08_LOCAL_API_PORT)} python3 scripts/wp06_ops.py http-negative
 
 verify: api-test migration-check web-check isolation-check http-negative-check release-gate-check
 
@@ -143,3 +151,21 @@ release-gate:
 
 release-gate-check:
 	python3 scripts/wp06_ops.py release-gate config/wp06_release_gate.local.json --expect-no-go
+
+wp08-cold-preflight:
+	python3 scripts/wp08_readiness.py cold-preflight
+
+wp08-evidence-init:
+	python3 scripts/wp08_readiness.py evidence-init
+
+wp08-evidence-check:
+	python3 scripts/wp08_readiness.py evidence-check
+
+wp08-git-check:
+	python3 scripts/wp08_readiness.py git-check
+
+browser-preflight:
+	python3 scripts/wp08_readiness.py browser-preflight
+
+browser-smoke: browser-preflight
+	sh scripts/wp08_browser_smoke.sh

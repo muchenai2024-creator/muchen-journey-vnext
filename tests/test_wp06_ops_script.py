@@ -2,6 +2,7 @@ import copy
 
 import pytest
 
+import scripts.wp06_ops as ops
 from scripts.wp06_ops import EXTERNAL_BLOCKERS, OpsError, alert_decisions, evaluate_release_gate
 
 
@@ -59,3 +60,38 @@ def test_alert_policy_detects_worker_queue_and_revision_failures():
         "RELEASE_REVISION_MISMATCH",
         "MIGRATION_REVISION_MISMATCH",
     ]
+
+
+def test_http_request_uses_explicit_local_api_port(monkeypatch):
+    captured = {}
+
+    class Response:
+        status = 200
+        headers = {}
+
+        def read(self):
+            return b"{}"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    def urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setenv("MJ_API_PORT", "38000")
+    monkeypatch.setattr(ops.urllib.request, "urlopen", urlopen)
+
+    assert ops.http_request("/health/ready")[0] == 200
+    assert captured == {"url": "http://127.0.0.1:38000/health/ready", "timeout": 5}
+
+
+def test_http_request_rejects_invalid_local_api_port(monkeypatch):
+    monkeypatch.setenv("MJ_API_PORT", "70000")
+
+    with pytest.raises(OpsError, match="valid TCP port"):
+        ops.http_request("/health/ready")

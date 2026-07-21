@@ -21,6 +21,7 @@ COMPONENTS = ("api", "web", "worker")
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 MANIFEST_SCHEMA_VERSION = 2
+ALEMBIC_REVISION_MAX_LENGTH = 32
 GHCR_PREFIX = "ghcr.io/muchenai2024-creator/muchen-journey-vnext"
 TRACE_IDS = (
     "ISO-MUST-001",
@@ -133,6 +134,12 @@ def migration() -> dict[str, Any]:
         revision, parent = values.get("revision"), values.get("down_revision")
         if not isinstance(revision, str) or (parent is not None and not isinstance(parent, str)):
             raise CandidateError(f"migration metadata must be literal and linear: {path.name}")
+        if not revision or len(revision) > ALEMBIC_REVISION_MAX_LENGTH:
+            raise CandidateError(
+                f"migration revision must be 1-{ALEMBIC_REVISION_MAX_LENGTH} characters: {path.name}"
+            )
+        if revision in revisions:
+            raise CandidateError(f"duplicate migration revision: {revision}")
         revisions[revision] = parent
     roots = [item for item, parent in revisions.items() if parent is None]
     heads = [item for item in revisions if item not in {parent for parent in revisions.values()}]
@@ -199,8 +206,11 @@ def source_check() -> dict[str, Any]:
         r"(?m)^http-negative-check:\n((?:\t[^\n]*\n)+)", makefile
     )
     required_http_negative = (
-        "\tdocker compose up --build -d --wait db api\n"
-        "\tpython3 scripts/wp06_ops.py http-negative\n"
+        "\tMJ_DB_PORT=$${MJ_DB_PORT:-$(WP08_LOCAL_DB_PORT)} "
+        "MJ_API_PORT=$${MJ_API_PORT:-$(WP08_LOCAL_API_PORT)} "
+        "docker compose up --build -d --wait db api\n"
+        "\tMJ_API_PORT=$${MJ_API_PORT:-$(WP08_LOCAL_API_PORT)} "
+        "python3 scripts/wp06_ops.py http-negative\n"
     )
     if http_negative is None or http_negative.group(1) != required_http_negative:
         raise CandidateError("HTTP negative gate must self-start only db and api")
