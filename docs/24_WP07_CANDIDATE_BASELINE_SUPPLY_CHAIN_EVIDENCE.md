@@ -1,7 +1,7 @@
 # 24｜WP-07 候选基线与软件供应链 As-Built
 
 状态：`AS_BUILT`  
-版本：V0.1  
+版本：V0.2  
 日期：2026-07-21  
 验证环境：本地 Docker 29.6.1 / Compose 5.2.0 / Buildx 0.35、Node.js 24.16.0、PostgreSQL 18.1、Python 3.14 容器  
 候选身份：`codex/wp-07-candidate-baseline` 的 clean 40 字符 `HEAD`；精确 SHA 与本地镜像 digest 写入 `artifacts/wp07-candidate/release-manifest.json`，避免在同一 Git commit 中自引用  
@@ -22,7 +22,7 @@
 | CI 未分层 | `.github/workflows/ci.yml` 运行 `make ci-fast`，10 分钟 timeout；`mainline.yml` 运行 `make ci-main` + `make candidate-package`；Actions 固定到 40 字符 SHA，权限仅 `contents: read` |
 | 空环境路径不完整 | `ci-fast` 从 `npm ci` 开始并执行 source/legacy/secret/dependency、空库 migration、53 tests、OpenAPI、lint/type；`ci-main` 再执行持久 migration、Web production build、Compose HTTP 权限负向和 fail-closed NO_GO |
 | 供应链不可绑定 | Python/Node/PostgreSQL base 使用 tag + registry digest；Gitleaks/Syft 扫描镜像使用固定 digest；API/Web/Worker 镜像写 OCI revision label |
-| 无 SBOM/manifest | Syft 为三镜像生成 SPDX JSON；manifest 绑定完整 SHA、OpenAPI SHA-256、migration head、config schema、TaskVersion 内容清单、local image content digest 与 SBOM hash |
+| 无 SBOM/manifest | Syft 为三镜像生成 SPDX JSON；manifest 绑定完整 SHA、OpenAPI SHA-256、migration head、config schema、TaskVersion 工件路径/哈希/内容清单、local image content digest 与 SBOM hash |
 
 唯一入口仍是现有 `Makefile`。WP-07 没有增加部署、发布或生产操作脚本；`scripts/wp07_candidate.py` 只负责候选元数据校验与 manifest 生成/验证，扫描工作直接使用官方工具。
 
@@ -45,11 +45,13 @@ manifest 至少包含：
 - `contracts/openapi.json` SHA-256；
 - 唯一 migration head `0010_wp06_governance` 与 10 个 revision；
 - config schema version `1`；
-- `TSK-001` TaskVersion V1/V2 的固定 ID 和内容 SHA-256；
+- `task-versions.json` 的仓库内相对路径、文件 SHA-256，以及与该工件逐项相等的 `TSK-001` V1/V2 固定 ID 和内容 SHA-256；
 - API/Web/Worker local image content digest、OCI revision label、SPDX SBOM path/hash；
 - protected main、registry push 和 deploy 继续为 `NOT_RUN`。
 
 本地 image ID 是内容摘要，但不是 registry manifest digest；后者必须在得到 push 授权并由远端 registry 返回后补证，不能伪造。
+
+V0.2 在主任务复验后收紧 `verify`：TaskVersion 工件路径必须解析在仓库内，文件哈希和内联清单必须同时匹配；`external_status` 必须精确等于 `protected_main/registry_push/deployment = NOT_RUN`，缺键、多键或伪造 `PASS` 均 fail closed。候选 commit 不能在自身受版本控制的文档中自引用，因此最终 40 字符 SHA 仍由提交后生成并自校验的 `release-manifest.json` 和交接共同给出。
 
 ## 4. 软件供应链与安全复核
 
@@ -61,6 +63,7 @@ manifest 至少包含：
 - Python、Node、PostgreSQL、Gitleaks、Syft 镜像均固定 registry digest；API/Worker/Web 最终运行用户仍分别为非 root `journey`/`nextjs`；
 - WP-07 变更未引入 `eval`、动态代码执行、`shell=True`、浏览器 HTML 注入、宽泛 CORS、客户端 secret、dev server 或 reload 生产入口；
 - 新 manifest 工具只执行固定的 `git`/`docker image inspect` 参数，不接收 HTTP/业务输入；Syft 仅在候选打包步骤读取 Docker socket，固定 digest 且不进入应用运行时。
+- manifest verifier 对 SBOM/TaskVersion 工件执行仓库边界、路径、哈希和内容绑定，并拒绝与当前未执行事实不完全一致的外部状态，避免被忽略工件事后篡改后继续通过。
 
 本轮未生成仓库级 threat model、镜像 CVE hardening、日志/source map 全面扫描或 Sev-3 台账；这些属于已定义的 WP-12，不在 WP-07 提前铺开。
 
@@ -79,7 +82,7 @@ manifest 至少包含：
 | --- | --- | --- |
 | source/trace/migration/config | PASS | 0.08s；OpenAPI SHA-256 `5a93026e…fa566b`；head 0010；config V1 |
 | secret scan | PASS | 0.78s；约 1.45 MB；0 leaks |
-| 新增 WP-07 tests | PASS | 2 tests；0.03s pytest / 1.19s 容器命令 |
+| WP-07 manifest tests | PASS | 9 tests；含有效基线及 external status 缺键/多键/伪造 PASS、TaskVersion 文件/内联内容篡改、路径逃逸负向；0.03s pytest / 1.02s 容器命令 |
 | runtime OpenAPI equality | PASS | 非 root API 容器读取 0444 contract；1.54s |
 | dependency audit | PASS | npm 0；pip 0 known；首次含 registry/漏洞库等待 103.78s |
 | `make ci-fast` | PASS | 53 tests（8.28s）+ 全部快速层；107.93s，低于 10 分钟目标 |
@@ -102,6 +105,7 @@ manifest 至少包含：
 ## 7. 工具债务、风险与退出判断
 
 - `muchen-journey-ops` V0.2 `doctor` 对本 Greenfield 仓库返回 `Not a compatible Muchen Journey repository`；沿用 10/22 号文档记录为工具债务，未复制旧 P1 runbook 或创建第二发布路径。
+- 主任务复验拒绝了 `d4bbbea728e20d2d5d1f7a0dd77f98acc1da0701`，原因是该版未绑定 `task-versions.json` 且未精确校验 `external_status`；V0.2 已加入对应 fail-closed 校验与负向测试，该 SHA 不再作为最终候选。
 - 当前 Git 基线来自此前全部未跟踪的用户工作树，因此首个 commit 相对空树会显示整个仓库为新增；WP-07 特定修改清单必须与完整初始基线 stat 分开审查。
 - 本地 SBOM 和 local image digest 可复现，但 GitHub workflow 尚未在远端执行；受保护 main、required checks、CODEOWNERS enforcement 与 registry digest 均无远端证据。
 - 所有 staging/production、真实 UAT、物理 ACL、异机恢复和发布批准仍保持 `NOT_RUN/NO_GO`。

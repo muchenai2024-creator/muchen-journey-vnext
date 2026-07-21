@@ -29,6 +29,11 @@ TRACE_IDS = (
     "AT-ARCH-005",
     "AT-ARCH-007",
 )
+EXPECTED_EXTERNAL_STATUS = {
+    "protected_main": "NOT_RUN",
+    "registry_push": "NOT_RUN",
+    "deployment": "NOT_RUN",
+}
 
 
 class CandidateError(RuntimeError):
@@ -55,6 +60,18 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def repository_artifact(value: str | Path, *, label: str, require_relative: bool) -> Path:
+    if not isinstance(value, (str, Path)):
+        raise CandidateError(f"{label} path is invalid")
+    raw = Path(value)
+    if require_relative and raw.is_absolute():
+        raise CandidateError(f"{label} path must be repository-relative")
+    path = (ROOT / raw).resolve() if not raw.is_absolute() else raw.resolve()
+    if not path.is_relative_to(ROOT) or not path.is_file():
+        raise CandidateError(f"{label} path must resolve to a repository file")
+    return path
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -214,7 +231,9 @@ def generate(task_path: Path, image_args: Iterable[str], sbom_args: Iterable[str
         labels = inspected.get("Config", {}).get("Labels") or {}
         if labels.get("org.opencontainers.image.revision") != commit:
             raise CandidateError(f"{component} image does not carry candidate revision")
-        sbom_path = Path(sboms[component]).resolve()
+        sbom_path = repository_artifact(
+            sboms[component], label=f"{component} SBOM", require_relative=False
+        )
         if not str(json.loads(sbom_path.read_text())["spdxVersion"]).startswith("SPDX-"):
             raise CandidateError(f"{component} SBOM is not SPDX JSON")
         image_manifest[component] = {
@@ -228,6 +247,7 @@ def generate(task_path: Path, image_args: Iterable[str], sbom_args: Iterable[str
                 "sha256": sha256(sbom_path),
             },
         }
+    task_path = repository_artifact(task_path, label="TaskVersion artifact", require_relative=False)
     tasks = json.loads(task_path.read_text(encoding="utf-8"))
     if not isinstance(tasks, list) or not tasks:
         raise CandidateError("TaskVersion list is empty")
@@ -247,12 +267,12 @@ def generate(task_path: Path, image_args: Iterable[str], sbom_args: Iterable[str
         "migration": migration(),
         "config_schema_version": config_schema(),
         "task_versions": tasks,
-        "images": image_manifest,
-        "external_status": {
-            "protected_main": "NOT_RUN",
-            "registry_push": "NOT_RUN",
-            "deployment": "NOT_RUN",
+        "task_versions_artifact": {
+            "path": str(task_path.relative_to(ROOT)),
+            "sha256": sha256(task_path),
         },
+        "images": image_manifest,
+        "external_status": EXPECTED_EXTERNAL_STATUS,
     }
 
 
@@ -265,6 +285,22 @@ def verify(path: Path) -> dict[str, Any]:
         raise CandidateError("manifest OpenAPI hash drifted")
     if value.get("migration") != migration() or value.get("config_schema_version") != config_schema():
         raise CandidateError("manifest migration/config drifted")
+    if value.get("external_status") != EXPECTED_EXTERNAL_STATUS:
+        raise CandidateError("manifest external status must exactly match current NOT_RUN facts")
+    task_evidence = value.get("task_versions_artifact")
+    if not isinstance(task_evidence, dict):
+        raise CandidateError("manifest TaskVersion artifact entry is invalid")
+    task_path = repository_artifact(
+        task_evidence.get("path", ""), label="TaskVersion artifact", require_relative=True
+    )
+    tasks = json.loads(task_path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(tasks, list)
+        or not tasks
+        or task_evidence.get("sha256") != sha256(task_path)
+        or value.get("task_versions") != tasks
+    ):
+        raise CandidateError("manifest TaskVersion artifact hash/content drifted")
     for component in COMPONENTS:
         item = value.get("images", {}).get(component, {})
         if not isinstance(item, dict):
@@ -273,12 +309,9 @@ def verify(path: Path) -> dict[str, Any]:
         sbom = item.get("sbom")
         if not isinstance(reference, str) or not isinstance(sbom, dict):
             raise CandidateError(f"manifest image/SBOM entry is invalid: {component}")
-        sbom_relative = sbom.get("path")
-        if not isinstance(sbom_relative, str):
-            raise CandidateError(f"manifest SBOM path is invalid: {component}")
-        sbom_path = (ROOT / sbom_relative).resolve()
-        if not sbom_path.is_relative_to(ROOT):
-            raise CandidateError(f"manifest SBOM path escapes the repository: {component}")
+        sbom_path = repository_artifact(
+            sbom.get("path", ""), label=f"{component} SBOM", require_relative=True
+        )
         inspected = json.loads(run(("docker", "image", "inspect", reference)))[0]
         labels = inspected.get("Config", {}).get("Labels") or {}
         if (
