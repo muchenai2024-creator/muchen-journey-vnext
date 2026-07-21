@@ -124,6 +124,7 @@ candidate-registry-push: candidate-registry-check
 	python3 scripts/wp07_candidate.py registry --manifest $(WP07_ARTIFACT_DIR)/release-manifest.json --registry-image api=$(WP07_API_GHCR_IMAGE) --registry-image web=$(WP07_WEB_GHCR_IMAGE) --registry-image worker=$(WP07_WORKER_GHCR_IMAGE)
 
 http-negative-check:
+	docker compose up --build -d --wait db api
 	python3 scripts/wp06_ops.py http-negative
 
 verify: api-test migration-check web-check isolation-check http-negative-check release-gate-check

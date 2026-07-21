@@ -55,7 +55,7 @@ WP-07 → WP-08 → WP-09 → WP-10 → WP-11
 
 锁定理由：02/10/11 号文档要求独立仓库、保护分支、CI/CD 和不可变候选；当前已连接 GitHub profile 为 `muchenai2024-creator`，没有可用 organization 安装。Private 是默认最小暴露选择，后续如需迁入 organization，必须在首个正式 RC 前以独立治理变更处理，不能临时切换候选来源。
 
-当前事实：已于 2026-07-21 使用 GitHub 账号 `muchenai2024-creator` 创建 Private 仓库 `muchenai2024-creator/muchen-journey-vnext`，并将本地 `origin` 绑定到 Canonical URL。WP-07 已在本地 `codex/wp-07-candidate-baseline` 形成首个可审查候选 commit 与 SHA 绑定工件；精确 SHA 以 `artifacts/wp07-candidate/release-manifest.json` 和主任务交接为准。远端仍为空，未执行 push、分支保护或协作者写入，因此 GitHub 尚未形成实际默认分支和远端门禁证据。
+当前事实：已于 2026-07-21 使用 GitHub 账号 `muchenai2024-creator` 创建 Private 仓库 `muchenai2024-creator/muchen-journey-vnext`，并将本地 `origin` 绑定到 Canonical URL。WP-07 首个候选 SHA `166252c8172da1a64abf02cf7455d1879c680afd` 已由主任务推送到远端 `main`；首次 mainline run 29803354837 在 `make ci-main` 因 runner 可移植性缺口失败，GHCR 与工件步骤均未执行。修复候选仍由独立任务本地形成并交主任务复验；分支保护、registry 回执和完整远端门禁证据仍未完成。
 
 ## 3. 工作包总览
 
@@ -106,7 +106,7 @@ WP-07 → WP-08 → WP-09 → WP-10 → WP-11
 
 ### 本地 As-Built 状态
 
-WP-07 本地实现与证据见 24 号文档：quick/mainline Make 与 GitHub Actions 合同、固定摘要、dependency/secret/legacy 扫描、三镜像 SBOM 和 release manifest 入口均已落地。由于本任务明确禁止 push 和修改 GitHub 设置，受保护 `main`、远端 CI 结果和 registry digest 仍为外部未决项；主任务复验并完成这些授权动作前不得把本地候选写成最终 `CANDIDATE_BASELINE_READY`，更不得启动 WP-08。
+WP-07 本地实现与证据见 24 号文档：quick/mainline Make 与 GitHub Actions 合同、固定摘要、dependency/secret/legacy 扫描、三镜像 SBOM 和 release manifest 入口均已落地。首次远端 mainline 已暴露无 `rg` 扫描与预运行 API 依赖两项可移植性缺口，且在 GHCR 前失败；当前 V0.4 修复仍禁止由独立任务 push 或修改 GitHub 设置。主任务复验新 SHA、重跑远端门禁、取得 registry digest 并完成受保护 `main` 前不得写成最终 `CANDIDATE_BASELINE_READY`，更不得启动 WP-08。
 
 ## 5. WP-08｜物理独立 Staging 基座
 

@@ -1,7 +1,7 @@
 # 24｜WP-07 候选基线与软件供应链 As-Built
 
 状态：`AS_BUILT`  
-版本：V0.3  
+版本：V0.4
 日期：2026-07-21  
 验证环境：本地 Docker 29.6.1 / Compose 5.2.0 / Buildx 0.35、Node.js 24.16.0、PostgreSQL 18.1、Python 3.14 容器  
 候选身份：`codex/wp-07-candidate-baseline` 的 clean 40 字符 `HEAD`；精确 SHA 与本地镜像 digest 写入 `artifacts/wp07-candidate/release-manifest.json`，避免在同一 Git commit 中自引用  
@@ -57,6 +57,10 @@ V0.2 在主任务复验后收紧 `verify`：TaskVersion 工件路径必须解析
 
 V0.3 增加上述 local/registry 两态机。`make candidate-registry-check` 只做 canonical SHA-tag 静态校验；CI-only `candidate-registry-push` 还要求 `GITHUB_ACTIONS=true`、事件为 `push`、ref 为 `refs/heads/main` 和显式 opt-in，且只 tag/push 已存在候选镜像，不重建、不生成 `latest`。任意状态组合、组件遗漏、非 canonical repo、非法 digest 或远端 tag/digest 内容不一致均 fail closed。
 
+V0.4 记录首个远端 mainline 证据：[run 29803354837](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29803354837) 在 SHA `166252c8172da1a64abf02cf7455d1879c680afd` 的 `make ci-main` 失败。根因一是 Ubuntu runner 没有 `rg`，旧隔离脚本在两次 `rg: not found` 后因 `if` 语义继续执行并误报通过；现改为显式选择 `rg` 或递归扩展正则 `grep`，区分“命中”“无命中”和“扫描器错误”，不可用或执行错误均 fail closed，并以无 `rg` 的 clean/forbidden/error 回归固定行为。根因二是旧 `http-negative-check` 隐式依赖本机已有 `127.0.0.1:8000` 服务；现由同一 Make target 以 `docker compose up --build -d --wait db api` 只构建/启动 DB 与 API，复用 API 既有 migrate/seed command，再执行仅负向请求的 WP-06 检查，不依赖 Worker/Web 或预运行服务。
+
+该 run 的 candidate package、GHCR 登录、三镜像 push/远端 digest 验证和 artifact 上传步骤全部为 `skipped`，因此它没有产生任何 registry `VERIFIED` 证据；V0.4 修复仍只形成未推送的本地候选，待主任务复验新 SHA 后重新触发远端 mainline。
+
 ## 4. 软件供应链与安全复核
 
 按 `security-best-practices` 完整读取并复核 Python/FastAPI、Next.js、React 与通用 Web 指导，结果：
@@ -90,6 +94,7 @@ V0.3 增加上述 local/registry 两态机。`make candidate-registry-check` 只
 | source/trace/migration/config | PASS | 0.08s；OpenAPI SHA-256 `5a93026e…fa566b`；head 0010；config V1 |
 | secret scan | PASS | 0.78s；约 1.45 MB；0 leaks |
 | WP-07 manifest tests | PASS | 25 tests；含 local/registry 正态及升级、状态与组件精确集合、canonical repo/禁止 latest、digest/遗漏/伪造、TaskVersion 篡改/路径逃逸、远端 immutable 二次验证；0.07s pytest / 1.30s 容器命令 |
+| CI portability regression | PASS | 3 tests；PATH 无 `rg` 时 clean tree 通过、forbidden reference 失败，扫描器错误/缺失 fail closed；HTTP target 静态合同精确限定 `db api` |
 | GHCR dry-run/static | PASS | 三个 canonical package + 完整 SHA tag；`registry_push=NOT_RUN`；workflow YAML 与全部 action 40 字符 SHA 合同通过；无登录/push |
 | runtime OpenAPI equality | PASS | 非 root API 容器读取 0444 contract；1.54s |
 | dependency audit | PASS | npm 0；pip 0 known；首次含 registry/漏洞库等待 103.78s |

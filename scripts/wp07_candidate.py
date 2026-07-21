@@ -169,6 +169,8 @@ def source_check() -> dict[str, Any]:
         ".github/CODEOWNERS",
         ".github/workflows/ci.yml",
         ".github/workflows/mainline.yml",
+        "Makefile",
+        "scripts/check_isolation.sh",
         "contracts/openapi.json",
         "requirements.lock",
         "apps/web/package-lock.json",
@@ -192,6 +194,16 @@ def source_check() -> dict[str, Any]:
     )
     if any(item not in mainline for item in required_mainline) or ":latest" in mainline:
         raise CandidateError("mainline GHCR workflow contract is invalid")
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    http_negative = re.search(
+        r"(?m)^http-negative-check:\n((?:\t[^\n]*\n)+)", makefile
+    )
+    required_http_negative = (
+        "\tdocker compose up --build -d --wait db api\n"
+        "\tpython3 scripts/wp06_ops.py http-negative\n"
+    )
+    if http_negative is None or http_negative.group(1) != required_http_negative:
+        raise CandidateError("HTTP negative gate must self-start only db and api")
     openapi = json.loads((ROOT / "contracts" / "openapi.json").read_text(encoding="utf-8"))
     if openapi.get("openapi") != "3.1.0" or not openapi.get("paths"):
         raise CandidateError("OpenAPI contract is invalid or empty")
