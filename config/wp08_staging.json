@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "provider": "volcengine",
+  "region_id": "cn-beijing",
+  "region_name": "华北2（北京）",
+  "billing_mode": "PostPaid",
+  "monthly_budget_cny": 500,
+  "approved_monthly_estimate_cny": null,
+  "candidate_commit": "ff07ce47d20f3f6eb09d633b09292628fbb58e2a",
+  "staging_origin": "https://staging-vnext.muchenai.com",
+  "resource_prefix": "journey-next-staging",
+  "required_resources": [
+    "iam_project_and_ci_identity",
+    "vpc",
+    "subnet",
+    "security_group",
+    "ecs",
+    "rds_postgresql",
+    "tos_bucket",
+    "dns_record_and_tls"
+  ],
+  "forbidden_reuse": [
+    "legacy_account_credentials",
+    "legacy_vpc_or_security_group",
+    "legacy_ecs_or_rds",
+    "legacy_tos_bucket_or_prefix",
+    "legacy_deployment_scripts",
+    "legacy_sentry_project",
+    "legacy_feishu_app"
+  ]
+}

@@ -1,0 +1,87 @@
+name: journey-next-staging
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+  extra_hosts:
+    - "journey.muchenai.com:127.0.0.1"
+
+services:
+  api:
+    <<: *common
+    image: ${API_IMAGE:?API_IMAGE must be an immutable GHCR digest reference}
+    env_file:
+      - secrets/api.env
+    volumes:
+      - ./secrets/volcengine-rds-ca.pem:/run/secrets/volcengine-rds-ca.pem:ro
+      - attachments:/srv/journey-next-staging/attachments
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  worker:
+    <<: *common
+    image: ${WORKER_IMAGE:?WORKER_IMAGE must be an immutable GHCR digest reference}
+    env_file:
+      - secrets/worker.env
+    volumes:
+      - ./secrets/volcengine-rds-ca.pem:/run/secrets/volcengine-rds-ca.pem:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; from datetime import UTC,datetime,timedelta; from sqlalchemy import text; from journey_api.db import SessionLocal; s=SessionLocal(); r=s.execute(text(\"SELECT release,last_seen_at FROM worker_heartbeats WHERE worker_name='notification-worker'\")).one(); s.close(); assert r.release==os.environ['APP_RELEASE'] and r.last_seen_at>=datetime.now(UTC)-timedelta(seconds=20)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  web:
+    <<: *common
+    image: ${WEB_IMAGE:?WEB_IMAGE must be an immutable GHCR digest reference}
+    env_file:
+      - secrets/web.env
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/ops').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  edge:
+    <<: *common
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    env_file:
+      - secrets/edge.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  attachments:
+    name: journey_next_staging_attachments_wp10_pending
+  caddy_data:
+    name: journey_next_staging_caddy_data
+  caddy_config:
+    name: journey_next_staging_caddy_config

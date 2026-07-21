@@ -19,3 +19,6 @@ artifacts/
 output/
 evidence/private/
 .wp06-local-backup.key
+.terraform/
+*.tfplan
+crash.log

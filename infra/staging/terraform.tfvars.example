@@ -1,0 +1,10 @@
+primary_zone_id              = "cn-beijing-a"
+secondary_zone_id            = "cn-beijing-b"
+approved_monthly_estimate_cny = 0 # replace only from a same-day official calculator quote
+dns_zone_id                  = "replace-with-private-zone-id"
+ecs_image_id                 = "replace-with-maintained-image-id"
+ecs_instance_type            = "replace-with-quoted-2vcpu-4gib-type"
+ecs_ssh_public_key           = "ssh-ed25519 replace-with-staging-only-public-key"
+migration_db_password        = "replace-through-TF_VAR-secret-only"
+runtime_db_password          = "replace-through-TF_VAR-secret-only"
+tos_bucket_name              = "journey-next-staging-replace-with-random-suffix"
