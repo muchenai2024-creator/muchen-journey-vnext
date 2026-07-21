@@ -1,0 +1,6 @@
+services:
+  api:
+    env_file:
+      - secrets/migration.env
+    volumes:
+      - ./grant_runtime.py:/tmp/grant_runtime.py:ro

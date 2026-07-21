@@ -14,7 +14,7 @@ WP07_PYTHON_IMAGE := python:3.14.6-slim@sha256:cea0e6040540fb2b965b6e7fb5ffa0087
 WP08_LOCAL_DB_PORT ?= 35432
 WP08_LOCAL_API_PORT ?= 38000
 
-.PHONY: bootstrap up down migrate seed api-test migration-check migration-static-check fixture-manifest web-install web-static web-check openapi-check isolation-check legacy-reference-scan traceability-check secret-scan dependency-audit ci-fast ci-main candidate-preflight candidate-images candidate-task-versions candidate-sboms candidate-package candidate-registry-check candidate-registry-push http-negative-check verify wp06-backup wp06-drill wp06-alert-sim release-gate release-gate-check wp08-cold-preflight wp08-evidence-init wp08-evidence-check wp08-git-check browser-preflight browser-smoke
+.PHONY: bootstrap up down migrate seed api-test migration-check migration-static-check fixture-manifest web-install web-static web-check openapi-check isolation-check legacy-reference-scan traceability-check secret-scan dependency-audit ci-fast ci-main candidate-preflight candidate-images candidate-task-versions candidate-sboms candidate-package candidate-registry-check candidate-registry-push http-negative-check verify wp06-backup wp06-drill wp06-alert-sim release-gate release-gate-check wp08-cold-preflight wp08-evidence-init wp08-evidence-check wp08-git-check wp08-staging-readiness wp08-staging-apply-check browser-preflight browser-smoke
 
 bootstrap:
 	docker compose build api worker
@@ -163,6 +163,12 @@ wp08-evidence-check:
 
 wp08-git-check:
 	python3 scripts/wp08_readiness.py git-check
+
+wp08-staging-readiness:
+	python3 scripts/wp08_staging.py check --phase readiness
+
+wp08-staging-apply-check:
+	python3 scripts/wp08_staging.py check --phase apply
 
 browser-preflight:
 	python3 scripts/wp08_readiness.py browser-preflight

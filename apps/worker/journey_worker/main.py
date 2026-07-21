@@ -69,10 +69,12 @@ class WorkerSettings:
         )
         if settings.app_env not in {"local", "test", "staging", "production"}:
             raise ValueError("APP_ENV must be local, test, staging, or production")
-        if settings.adapter != "LOCAL_TEST":
-            raise ValueError("Only the LOCAL_TEST notification adapter is implemented")
-        if settings.app_env not in {"local", "test"}:
+        if settings.adapter not in {"LOCAL_TEST", "DISABLED"}:
+            raise ValueError("NOTIFICATION_ADAPTER must be LOCAL_TEST or DISABLED")
+        if settings.adapter == "LOCAL_TEST" and settings.app_env not in {"local", "test"}:
             raise ValueError("LOCAL_TEST notification adapter is disabled outside local/test")
+        if settings.adapter == "DISABLED" and settings.app_env != "staging":
+            raise ValueError("DISABLED notification adapter is staging-only")
         if settings.local_behavior not in {"success", "fail_once", "always_fail"}:
             raise ValueError("LOCAL_NOTIFICATION_BEHAVIOR is invalid")
         if settings.crash_after_delivery and settings.app_env not in {"local", "test"}:
@@ -179,6 +181,8 @@ def claim_next(
             .limit(1)
             .with_for_update(skip_locked=True)
         )
+        if settings.adapter == "DISABLED":
+            query = query.where(OutboxEvent.event_type != "notification.requested.v1")
         if event_id is not None:
             query = query.where(OutboxEvent.id == event_id)
         event = session.scalar(query)

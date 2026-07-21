@@ -1,0 +1,137 @@
+name: WP-08 Staging Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Exact approved 40-character candidate SHA
+        required: true
+        type: string
+      confirmation:
+        description: Type DEPLOY_FF07_TO_VOLCENGINE_STAGING
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: wp08-volcengine-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: WP-08 / physical staging
+    if: >-
+      inputs.candidate == 'ff07ce47d20f3f6eb09d633b09292628fbb58e2a' &&
+      inputs.confirmation == 'DEPLOY_FF07_TO_VOLCENGINE_STAGING'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      VOLCENGINE_REGION: cn-beijing
+      VOLCENGINE_ACCESS_KEY: ${{ secrets.VOLCENGINE_ACCESS_KEY }}
+      VOLCENGINE_SECRET_KEY: ${{ secrets.VOLCENGINE_SECRET_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.VOLCENGINE_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.VOLCENGINE_SECRET_KEY }}
+      AWS_REGION: cn-beijing
+      AWS_ENDPOINT_URL_S3: https://tos-s3-cn-beijing.volces.com
+      AWS_S3_USE_PATH_STYLE: "false"
+      TF_VAR_primary_zone_id: ${{ vars.WP08_PRIMARY_ZONE_ID }}
+      TF_VAR_secondary_zone_id: ${{ vars.WP08_SECONDARY_ZONE_ID }}
+      TF_VAR_dns_zone_id: ${{ secrets.WP08_DNS_ZONE_ID }}
+      TF_VAR_ecs_image_id: ${{ vars.WP08_ECS_IMAGE_ID }}
+      TF_VAR_ecs_instance_type: ${{ vars.WP08_ECS_INSTANCE_TYPE }}
+      TF_VAR_ecs_ssh_public_key: ${{ secrets.WP08_DEPLOY_SSH_PUBLIC_KEY }}
+      TF_VAR_migration_db_password: ${{ secrets.WP08_MIGRATION_DB_PASSWORD }}
+      TF_VAR_runtime_db_password: ${{ secrets.WP08_RUNTIME_DB_PASSWORD }}
+      TF_VAR_tos_bucket_name: ${{ secrets.WP08_TOS_BUCKET_NAME }}
+      WP08_MIGRATION_DB_PASSWORD: ${{ secrets.WP08_MIGRATION_DB_PASSWORD }}
+      WP08_RUNTIME_DB_PASSWORD: ${{ secrets.WP08_RUNTIME_DB_PASSWORD }}
+      WP08_SESSION_SECRET: ${{ secrets.WP08_SESSION_SECRET }}
+      WP08_INVITE_SECRET: ${{ secrets.WP08_INVITE_SECRET }}
+      WP08_IMPORT_SIGNING_KEY: ${{ secrets.WP08_IMPORT_SIGNING_KEY }}
+      WP08_RDS_CA_PEM_B64: ${{ secrets.WP08_RDS_CA_PEM_B64 }}
+      WP08_ACME_EMAIL: ${{ secrets.WP08_ACME_EMAIL }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+      - name: Verify immutable WP-08 contract
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "${{ inputs.candidate }}" = "$(jq -r .candidate_commit config/wp08_staging.json)"
+          make wp08-staging-apply-check
+          echo "TF_VAR_approved_monthly_estimate_cny=$(jq -r .approved_monthly_estimate_cny config/wp08_staging.json)" >>"$GITHUB_ENV"
+      - name: Initialize encrypted private TOS state
+        working-directory: infra/staging
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.WP08_TF_STATE_BUCKET }}" \
+            -backend-config="key=terraform/wp08-staging.tfstate" \
+            -backend-config="region=cn-beijing" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="skip_s3_checksum=true"
+          terraform validate
+      - name: Open ephemeral deploy path and apply reviewed infrastructure
+        id: infrastructure
+        working-directory: infra/staging
+        run: |
+          runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\r\n')
+          python3 - "$runner_ip" <<'PY'
+          import ipaddress
+          import sys
+          ipaddress.IPv4Address(sys.argv[1])
+          PY
+          echo "WP08_RUNNER_CIDR=$runner_ip/32" >>"$GITHUB_ENV"
+          terraform plan -out=wp08.tfplan -var="deploy_cidr=$runner_ip/32"
+          terraform apply -auto-approve wp08.tfplan
+          echo "public_ip=$(terraform output -raw staging_public_ip)" >>"$GITHUB_OUTPUT"
+          echo "rds_host=$(terraform output -raw rds_private_host)" >>"$GITHUB_OUTPUT"
+          echo "rds_port=$(terraform output -raw rds_private_port)" >>"$GITHUB_OUTPUT"
+      - name: Prepare private deploy bundle
+        env:
+          WP08_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.WP08_DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          bundle="$RUNNER_TEMP/wp08-deploy"
+          python3 scripts/wp08_prepare_deploy.py \
+            --output "$bundle" \
+            --rds-host "${{ steps.infrastructure.outputs.rds_host }}" \
+            --rds-port "${{ steps.infrastructure.outputs.rds_port }}"
+          cp deploy/staging/compose.yaml deploy/staging/compose.migrate.yaml "$bundle/"
+          cp deploy/staging/Caddyfile deploy/staging/grant_runtime.py deploy/staging/deploy.sh "$bundle/"
+          chmod 0755 "$bundle/deploy.sh"
+          printf '%s\n' "$WP08_DEPLOY_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/wp08-deploy-key"
+          chmod 0600 "$RUNNER_TEMP/wp08-deploy-key"
+      - name: Deploy exact registry digests
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLIC_IP: ${{ steps.infrastructure.outputs.public_ip }}
+        run: |
+          ssh_opts=(-i "$RUNNER_TEMP/wp08-deploy-key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$RUNNER_TEMP/wp08-known-hosts")
+          release="/srv/journey-next-staging/releases/${{ inputs.candidate }}"
+          ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "test ! -e '$release' && install -d -m 0700 '$release'"
+          tar -C "$RUNNER_TEMP/wp08-deploy" -czf - . | ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "tar -xzf - -C '$release'"
+          printf '%s' "$GHCR_TOKEN" | ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin >/dev/null"
+          ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "cd '$release' && set -a && . ./.deployment.env && set +a && ./deploy.sh"
+          ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "docker logout ghcr.io >/dev/null"
+          ssh-keygen -lf "$RUNNER_TEMP/wp08-known-hosts"
+      - name: Verify external TLS and release surface
+        run: |
+          curl --fail --silent --show-error --retry 12 --retry-delay 10 --retry-all-errors \
+            https://staging-vnext.muchenai.com/ >/dev/null
+          curl --fail --silent --show-error --retry 6 --retry-delay 5 \
+            https://staging-vnext.muchenai.com/ops >/dev/null
+      - name: Close SSH ingress
+        if: always() && steps.infrastructure.outcome == 'success'
+        working-directory: infra/staging
+        run: terraform apply -auto-approve -var="deploy_cidr=127.0.0.1/32"

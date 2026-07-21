@@ -11,6 +11,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import DBAPIError
 
 import test_reviewer_workbench as wp04
+from journey_worker.main import WorkerSettings
 from journey_api.db import SessionLocal
 from journey_api.main import app
 from journey_api.models import (
@@ -119,6 +120,24 @@ def run_worker(
         timeout=20,
         check=False,
     )
+
+
+def test_staging_disabled_adapter_is_explicit_and_production_remains_closed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("NOTIFICATION_ADAPTER", "DISABLED")
+    settings = WorkerSettings.from_env()
+    assert settings.adapter == "DISABLED"
+
+    monkeypatch.setenv("APP_ENV", "production")
+    with pytest.raises(ValueError, match="staging-only"):
+        WorkerSettings.from_env()
+
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("NOTIFICATION_ADAPTER", "LOCAL_TEST")
+    with pytest.raises(ValueError, match="disabled outside local/test"):
+        WorkerSettings.from_env()
 
 
 def test_result_handoff_timeline_scope_immutability_and_get_purity():
