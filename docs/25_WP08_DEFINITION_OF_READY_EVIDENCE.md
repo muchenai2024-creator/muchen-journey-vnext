@@ -20,7 +20,7 @@
 
 | 开工项 | 结果 | 可复现证据 |
 | --- | --- | --- |
-| Git/PR | 待 PR 创建后最终勾选 | base SHA 已固定；单一分支；`make wp08-git-check` 要求 clean tree、`codex/wp-08-*` 且 `merge-base == origin/main`，任一漂移 fail closed |
+| Git/PR | PASS | base SHA 已固定；单一分支；commit `7b3067f602563eacac81ef0d01a67a15bbdc2cde` clean；PR #3 的 required `WP-07 / quick` run `29844625968` 由 `pull_request` 触发并 PASS；`make wp08-git-check` 还要求 `merge-base == origin/main`，任一漂移 fail closed |
 | 浏览器预检 | PASS | `make browser-preflight/browser-smoke`；固定 Chromium 1232、`config/wp08_browser_smoke.json`、`output/playwright/wp08`；1440×900、768×1024、390×844 三视口均无 overflow，38 个 focusable，Tab focus 成功，console 0 error/0 warning |
 | migration / fixture | PASS | 静态检查拒绝重复及超过 Alembic `varchar(32)` 的 revision，root=`0001_initial`、唯一 head=`0010_wp06_governance`；空库 86 tests；持久库 `0009→0010→0009→0010` 保真；manifest 由唯一 `python -m journey_api.seed` builder 生成并只列 synthetic stable references/表/字段 |
 | 停止态自举/工具 | PASS | 项目服务停止时 `make wp08-cold-preflight` 验证 Docker/Compose/git/Python/Node/npm/npx 和 compose config；浏览器 smoke 自行启动 DB/API/Web 并结束后停止；本地端口只绑定 loopback 且门禁使用显式隔离端口 |
@@ -61,4 +61,4 @@
 
 WP-08 物理实现尚缺以下执行输入：staging 平台与 region、staging 域名/证书 Owner、托管 PostgreSQL、S3-compatible storage、secret/KMS、日志/APM 供应商、CI deploy identity，以及这些资源的成本与外部写入授权。没有这些输入时不得选择供应商或创建资源。
 
-因此本文当前退出词不是 `STAGING_ISOLATION_VERIFIED`，而是 `WP08_DEFINITION_OF_READY`。完成 PR/required check 后可关闭六项开工检查；随后唯一下一动作是由环境 Owner 给出上述精确 staging 资源选择与写入授权，再继续 WP-08，而不是越过它启动 WP-09。
+因此本文当前退出词不是 `STAGING_ISOLATION_VERIFIED`，而是 `WP08_DEFINITION_OF_READY`。PR #3 首轮 required check 已通过，六项开工检查已关闭；随后唯一下一动作是由环境 Owner 给出上述精确 staging 资源选择与写入授权，再继续 WP-08，而不是越过它启动 WP-09。
