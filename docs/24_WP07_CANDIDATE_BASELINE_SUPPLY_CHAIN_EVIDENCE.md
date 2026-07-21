@@ -20,7 +20,7 @@
 | 无可审查 Git 基线 | 本地 `codex/wp-07-candidate-baseline` 首个候选 commit；manifest 生成前强制 full SHA + clean tree |
 | 无责任人合同 | `.github/CODEOWNERS` 将默认、CI、contract、migration 与追溯矩阵归属 `@muchenai2024-creator`；远端 enforcement 待授权 |
 | CI 未分层 | `.github/workflows/ci.yml` 运行 `make ci-fast`，10 分钟 timeout；`mainline.yml` 运行 `make ci-main` + `make candidate-package`；Actions 固定到 40 字符 SHA，权限仅 `contents: read` |
-| 空环境路径不完整 | `ci-fast` 从 `npm ci` 开始并执行 source/legacy/secret/dependency、空库 migration、53 tests、OpenAPI、lint/type；`ci-main` 再执行持久 migration、Web production build、Compose HTTP 权限负向和 fail-closed NO_GO |
+| 空环境路径不完整 | `ci-fast` 从 `npm ci` 开始并执行 source/legacy/secret/dependency、空库 migration、60 tests、OpenAPI、lint/type；`ci-main` 再执行持久 migration、Web production build、Compose HTTP 权限负向和 fail-closed NO_GO |
 | 供应链不可绑定 | Python/Node/PostgreSQL base 使用 tag + registry digest；Gitleaks/Syft 扫描镜像使用固定 digest；API/Web/Worker 镜像写 OCI revision label |
 | 无 SBOM/manifest | Syft 为三镜像生成 SPDX JSON；manifest 绑定完整 SHA、OpenAPI SHA-256、migration head、config schema、TaskVersion 工件路径/哈希/内容清单、local image content digest 与 SBOM hash |
 
@@ -85,7 +85,7 @@ V0.2 在主任务复验后收紧 `verify`：TaskVersion 工件路径必须解析
 | WP-07 manifest tests | PASS | 9 tests；含有效基线及 external status 缺键/多键/伪造 PASS、TaskVersion 文件/内联内容篡改、路径逃逸负向；0.03s pytest / 1.02s 容器命令 |
 | runtime OpenAPI equality | PASS | 非 root API 容器读取 0444 contract；1.54s |
 | dependency audit | PASS | npm 0；pip 0 known；首次含 registry/漏洞库等待 103.78s |
-| `make ci-fast` | PASS | 53 tests（8.28s）+ 全部快速层；107.93s，低于 10 分钟目标 |
+| `make ci-fast` | PASS | V0.2 最终套件 60 tests（6.75s）+ 全部快速层；123.04s，低于 10 分钟目标 |
 | `make ci-main` | PASS | 53 tests（8.08s）、0009↔0010、Web production build、HTTP permission negative 与 expected `NO_GO`；182.96s |
 | `make candidate-package` | 提交后生成 | 必须在 clean candidate commit 上运行；manifest 自校验结果随工件和最终交接提供 |
 
@@ -98,7 +98,7 @@ V0.2 在主任务复验后收紧 `verify`：TaskVersion 工件路径必须解析
 | preflight | 完整治理/skill/AGENTS/git/范围读取在实现计时前完成；早期未单独启动 wall-clock，作为本轮计时债务明确保留 |
 | implementation + targeted | 2026-07-21T03:49:09Z 至约 04:07Z（完整门禁启动前），约 18 分钟；包含两次真实失败定位与修复 |
 | bootstrap / external wait | 首次 API pinned-base/依赖构建 85.97s；首次完整 dependency audit 103.78s；下载/registry/漏洞库等待与实现分离 |
-| quick gate | 107.93s |
+| quick gate | V0.1 107.93s；V0.2 复验修复后 123.04s |
 | mainline full gate | 182.96s；PASS |
 | candidate image/SBOM/manifest | 提交后单独计时并在最终交接报告 |
 
