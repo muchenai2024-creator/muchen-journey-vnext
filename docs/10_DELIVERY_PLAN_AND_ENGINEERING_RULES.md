@@ -1,11 +1,11 @@
 # 10｜交付计划与工程规则
 
 状态：`APPROVED_FOR_BUILD`  
-版本：V0.2  
-日期：2026-07-20  
+版本：V0.3
+日期：2026-07-21
 文档 Owner：Tech Lead + Product Owner  
 目标：以一个稳定候选完成一个真实闭环；控制 WIP 和共享改动，避免通过大量并行分支制造集成债务。  
-变更说明：根据 WP-01 的 39 分 32 秒实测，增加执行节奏、耗时口径与技能选择规则。
+变更说明：根据 WP-01 的 39 分 32 秒实测增加执行节奏、耗时口径与技能选择规则；根据 WP-01～WP-07 横向复盘增加六项 P0 开工硬规则，并记录 `muchen-journey-ops` V0.3 兼容闭环。
 
 ## 1. 交付原则
 
@@ -95,13 +95,24 @@
 
 完整门禁不是每个小修改后的反馈工具；开发中优先定向测试，行为稳定后再跑全量。新增 migration、seed 或 fixture 时，空库路径和上一工作包持久库升级路径都属于定向检查，不能推迟到最终浏览器 smoke。
 
+#### WP-01～WP-07 P0 复盘回写
+
+以下六项是后续工作包的开工硬规则，不是可在收尾阶段补写的建议；任一项不满足时，不开始编码或外部环境写入：
+
+1. **逐工作包 Git/PR**：从最新受保护 `main` 的精确 SHA 建立唯一短生命周期 `codex/wp-*` 分支；需求、实现、迁移、合同、测试和静态证据在同一工作包 PR 中闭环。禁止把多个未提交工作包压入后续“初始基线”，禁止直接写受保护 `main`；开工记录 base SHA、分支、Owner、Reviewer 和预期 required check。
+2. **统一浏览器预检**：真实浏览器验证前先运行仓库唯一的 `browser-preflight/browser-smoke` 入口；它必须创建证据目录、解析固定 Chromium/config、验证服务与 cookie/redirect 前置条件，并覆盖桌面/平板/手机、console error、横向 overflow、focus/键盘。不得在每个工作包临时重装浏览器、拼接 wrapper 或依赖未记录的本机状态。
+3. **迁移与 fixture 先行门禁**：新增 migration/seed/fixture 时，先静态检查 revision 长度、唯一 head、FK/unique/nullable、升降级和命名，再运行空库与上一工作包持久库升级/回退。测试数据统一经过 fixture builder，并生成不含 PII 的表/字段/稳定引用 manifest；禁止在测试中散落手写 UUID、错误表名/字段、隐式 flush 顺序或 SQL alias 假设。
+4. **停止态自举与工具 fail-closed**：快速层、主线层和定向门禁必须能从服务全部停止、空缓存/空数据库的声明状态自举，不依赖预启动 API、宿主已有 `rg` 或某个 Python 小版本。必需工具先显式检查；缺失、扫描器错误和未知状态必须失败，优先在固定摘要容器中运行。
+5. **Ops Greenfield 兼容**：每个工作包开工和收尾分别运行 `muchen-journey-ops` V0.3+ 的 `doctor` 与适用的 `status/gates`；必须识别 `greenfield-vnext`，并诚实保留候选不一致、`NOT_RUN` 和 `NO_GO`。不得复制旧 P1 marker、Make target 或 runbook 绕过识别，也不得建立第二套部署路径。
+6. **Public 仓库证据边界**：Public Git 只保存非敏感资源代号、状态、不可逆哈希和私有证据引用；真实人员/名册、tenant/app ID、未公开域名/IP、ACL 明细、secret 路径内容、运行截图和业务数据进入访问受控的私有证据存储。开工前明确私有证据位置、Owner、访问范围、保留期和公开引用格式；提交前运行 secret/PII 扫描。
+
 ### 耗时口径与 WP-01 回写
 
 WP-01 单次执行耗时 39 分 32 秒，包含合同阅读、migration/API/Web、安全负向与并发测试、19 项回归、容器重建、真实浏览器加入/退出、两项实缺陷修复、依赖审计和证据更新。对首个真实身份工作包，该时长正常，不能仅以总分钟数判定低效。
 
 后续每个工作包分别记录 `preflight / implementation / targeted tests / browser / full gate / evidence / external wait`。完成至少三个工作包后再以中位数建立团队基线；依赖下载、registry 故障和人工等待不计入纯实现耗时。WP-01 已识别的优化是：浏览器检查前移、既有库升级测试前移、环境 bootstrap 与实现计时分离。
 
-工具债务：当前 `muchen-journey-ops` 的只读 helper 尚不能识别本 Greenfield 仓库结构，只能提供治理约束，不能生成有效 status/gates 快照。进入候选/发布阶段前应单独升级该 plugin 的仓库兼容规则；在此之前使用本仓库既有 Make targets 和 As-Built 证据，不为绕过 helper 新建第二套命令。
+工具债务关闭：2026-07-21 已将 `muchen-journey-ops` 升级为 V0.3，`doctor` 可识别 `greenfield-vnext`，`status/gates` 能读取现有 WP-06/WP-07 证据并保留候选不一致、`NOT_RUN/NO_GO`；旧 P1 profile 仍独立兼容。该只读 helper 不等于实时健康检查或部署授权，生产/恢复/外部写入仍只能使用仓库已批准入口和当轮明确授权。
 
 ## 4. Definition of Ready
 
