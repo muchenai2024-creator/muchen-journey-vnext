@@ -1,7 +1,7 @@
 # 23｜G4–G6 下一批工作包定义
 
 状态：`DRAFT_FOR_APPROVAL`  
-版本：V0.2  
+版本：V0.3
 日期：2026-07-21  
 建议 Owner：Product Owner + Tech Lead + QA/UAT Owner + Release/Ops Owner  
 依据：00–15 号开发前批准文档，以及 16–22 号 As-Built 已实现事实  
@@ -30,7 +30,7 @@ WP-07 → WP-08 → WP-09 → WP-10 → WP-11
 
 以下不是重开 DEC-001～016，而是把已批准方向替换为可执行的物理值：
 
-1. [x] Git 远端目标已锁定并完成私有仓库创建、本地 `origin` 绑定、`main` push 和远端 CI/GHCR 闭环，见 2.1；私有仓库保护规则被当前 GitHub 套餐阻塞；
+1. [x] Git 远端目标已锁定并完成仓库创建、本地 `origin` 绑定、`main` push、远端 CI/GHCR 和保护规则闭环，见 2.1；
 2. staging/prod 部署平台、区域、域名与证书 Owner；
 3. PostgreSQL、S3-compatible storage、secret/KMS、日志/APM/告警供应商；
 4. vNext 独立飞书应用、回调域名、应用 Owner 和测试租户；
@@ -47,15 +47,15 @@ WP-07 → WP-08 → WP-09 → WP-10 → WP-11
 | 平台 | GitHub |
 | Owner | `muchenai2024-creator` |
 | 仓库名 | `muchen-journey-vnext` |
-| 可见性 | Private |
+| 可见性 | Public（用户在理解源码、历史、Actions 与工件公开风险后明确批准） |
 | 默认分支 | `main` |
 | 本地远端名 | `origin` |
 | Canonical URL | `https://github.com/muchenai2024-creator/muchen-journey-vnext.git` |
 | SSH URL（可选） | `git@github.com:muchenai2024-creator/muchen-journey-vnext.git` |
 
-锁定理由：02/10/11 号文档要求独立仓库、保护分支、CI/CD 和不可变候选；当前已连接 GitHub profile 为 `muchenai2024-creator`，没有可用 organization 安装。Private 是默认最小暴露选择，后续如需迁入 organization，必须在首个正式 RC 前以独立治理变更处理，不能临时切换候选来源。
+锁定理由：02/10/11 号文档要求独立仓库、保护分支、CI/CD 和不可变候选；当前已连接 GitHub profile 为 `muchenai2024-creator`，没有可用 organization 安装。初始 Private 因 GitHub Free 无法启用保护规则；用户在获知源码、历史、Actions、工件及外部副本不可收回风险后明确要求改为 Public，以关闭当前单人阶段的保护分支门禁。Public 是当前批准值，未来改回 Private 或迁入 organization 必须作为独立治理变更，不能临时切换候选来源。
 
-当前事实：已于 2026-07-21 使用 GitHub 账号 `muchenai2024-creator` 创建 Private 仓库 `muchenai2024-creator/muchen-journey-vnext`，并将本地 `origin` 绑定到 Canonical URL。首次 mainline run 29803354837 暴露并固定两项 runner 可移植性缺口；修复实现 SHA `eb4035efe2d8b08f4025e643fd53fabf3dfc0d58` 的 run 29804468895 已全绿，三镜像完整 SHA 标签、远端 digest、registry-mode manifest 与下载工件均复验通过。私有仓库 branch protection API 返回 HTTP 403，要求升级 GitHub Pro 或改为 Public；Public 违反已锁定决策，故保护规则仍 `NOT_RUN`。
+当前事实：已于 2026-07-21 使用 GitHub 账号 `muchenai2024-creator` 创建仓库 `muchenai2024-creator/muchen-journey-vnext` 并绑定 Canonical URL。run 29803354837 暴露并固定两项 runner 可移植性缺口；run 29804468895 与最终证据 run 29804985537 全绿，三镜像完整 SHA 标签、远端 digest、registry-mode manifest 与下载工件均复验通过。仓库随后按用户明确决策改为 Public；`main` 已由 GitHub API 验证为强制 PR、严格 `WP-07 / quick`、线性历史、会话解决、管理员 enforcement，且禁止 force-push/删除。`mainline` 继续在合并后的 `push main` 完成全量门禁和 GHCR 发布。
 
 ## 3. 工作包总览
 
@@ -102,11 +102,11 @@ WP-07 → WP-08 → WP-09 → WP-10 → WP-11
 
 ### 权限边界
 
-远端仓库创建、本地 `origin` 绑定和 WP-07 `main`/GHCR 写入已获授权并完成；保护分支因 GitHub 套餐不可用，协作者或其他 GitHub 设置仍属于后续外部写入，执行前需要用户明确授权。
+远端仓库创建、Public 可见性、本地 `origin`、WP-07 `main`/GHCR 写入和保护规则均已获授权并完成；协作者或其他 GitHub 设置仍属于后续外部写入，执行前需要用户明确授权。
 
 ### 本地 As-Built 状态
 
-WP-07 实现与证据见 24 号文档：quick/mainline Make 与 GitHub Actions 合同、固定摘要、dependency/secret/legacy 扫描、三镜像 SBOM、release manifest、远端 CI 与 GHCR digest 均已落地并复验。独立任务未做远端写入，主任务已按授权完成；当前只剩受保护 `main` 因 GitHub Private 套餐限制无法启用。在用户升级套餐或显式批准治理例外前，不得写成最终 `CANDIDATE_BASELINE_READY`，更不得启动 WP-08。
+WP-07 实现与证据见 24 号文档：quick/mainline Make 与 GitHub Actions 合同、固定摘要、dependency/secret/legacy 扫描、三镜像 SBOM、release manifest、远端 CI/GHCR digest 和保护规则均已落地并复验。独立任务未做远端写入，主任务已按授权完成；WP-07 退出词为 `CANDIDATE_BASELINE_READY`，可按单一 WIP 启动 WP-08，整体发布仍为 `NO_GO`。
 
 ## 5. WP-08｜物理独立 Staging 基座
 
