@@ -25,14 +25,14 @@
 
 | 要求 | 架构/交付控制 | 自动/人工验收 | 发布证据 |
 | --- | --- | --- | --- |
-| ISO-MUST-001 独立源码 | 新 Git repo；无 submodule/workspace 引用 | AT-ISO-001；dependency/import scan | WP-07 本地候选 commit、CODEOWNERS、clean-tree preflight 与 legacy/isolation scan；远端 main/push/protection `NOT_RUN`；见 24 |
-| ISO-MUST-002 独立依赖 | 公开依赖 + vNext 自有模块 | lockfile/SBOM/forbidden import | WP-07 固定 runtime/base/扫描器摘要，npm/pip audit、secret scan 与 Web/API/Worker SPDX SBOM；见 24 |
+| ISO-MUST-001 独立源码 | 新 Git repo；无 submodule/workspace 引用 | AT-ISO-001；dependency/import scan | WP-07 本地候选 commit、CODEOWNERS、clean-tree preflight 与 legacy/isolation scan；push/main 保护仍由主任务执行；见 24 |
+| ISO-MUST-002 独立依赖 | 公开依赖 + vNext 自有模块 | lockfile/SBOM/forbidden import | WP-07 固定 runtime/base/扫描器摘要，npm/pip audit、secret scan、三镜像 SPDX SBOM 与 canonical GHCR SHA-tag/digest 合同；见 24 |
 | ISO-MUST-003 独立 DB | 新 DB/role；0001..0010 migration | AT-ISO-005；DB ACL/空库重建 | 空库 0001→0010 与既有事实 0009↔0010 本地 PASS；物理 ACL `NOT_RUN`；见 22 |
 | ISO-MUST-004 无旧运行时 | egress allowlist；无旧 SDK/URL | AT-ISO-002；network deny | egress policy/report |
 | ISO-MUST-005 独立身份 | vNext user/session/secret | AT-ISO-003；AT-SEC-004/012 | WP-01 逻辑隔离与配置 fail-closed 已自动化；staging/prod 物理 identity config audit `NOT_RUN` |
 | ISO-MUST-006 无兼容路由 | 04 号唯一 route manifest | AT-ISO-004；AT-UX-009 | route scan |
 | ISO-MUST-007 独立环境 | 资源清单与命名空间 | environment audit | signed env manifest |
-| ISO-MUST-008 独立部署 | vNext CI/image/runtime | AT-ISO-001/007 | WP-07 提供 quick/mainline CI 与 SHA/OpenAPI/migration/config/TaskVersion/image/SBOM manifest；远端 CI、registry push/digest 和部署 `NOT_RUN`；见 24 |
+| ISO-MUST-008 独立部署 | vNext CI/image/runtime | AT-ISO-001/007 | WP-07 mainline 在 `push main` 运行完整门禁、推送三个精确 SHA GHCR 镜像、远端验证 digest 并上传 manifest/SBOM/TaskVersion；本地 dry-run PASS，远端执行和部署仍 `NOT_RUN`；见 24 |
 | ISO-MUST-009 独立可观测 | vNext log/APM/revision | AT-ARCH-005；告警演练 | WP-06 暴露 release/health/worker/backlog/dead 并完成本地告警模拟；外部 APM/告警 `NOT_RUN`；见 22 |
 | ISO-MUST-010 vNext 内回滚 | N ↔ N+1 compatible rollout | AT-ISO-007 | WP-06 隔离恢复后 0010→0009→0010 与事实指纹本地 PASS；生产回滚 `NOT_RUN`；见 22 |
 | ISO-MUST-011 离线导入 | signed export + importer | AT-ISO-006；AT-DATA-007 | WP-06 HMAC/checksum/dry-run/幂等/冲突隔离/不可变 ledger 本地 PASS；真实旧系统包 `NOT_RUN`；见 22 |
@@ -144,4 +144,4 @@ CI 后续应验证：
 
 | 工作包 | 需求/验收 | 本地机器证据 | 外部边界 | 当前结论 |
 | --- | --- | --- | --- | --- |
-| WP-07 候选基线与软件供应链 | ISO-MUST-001/002/008；REQ-NFR-001/010；AT-ISO-001；AT-ARCH-005/007 | `make ci-fast`、`make ci-main`、`make candidate-package`；完整 SHA、OpenAPI hash、0010 head、config schema V1、TaskVersion 清单、三镜像 local digest/SPDX SBOM；见 24 | push、受保护 main、远端 CI、registry digest 均 `NOT_RUN` | 本地候选可交主任务复验；`CANDIDATE_BASELINE_READY` 仍取决于外部项 |
+| WP-07 候选基线与软件供应链 | ISO-MUST-001/002/008；REQ-NFR-001/010；AT-ISO-001；AT-ARCH-005/007 | `make ci-fast`、`make ci-main`、`make candidate-package`、`make candidate-registry-check`；完整 SHA/OpenAPI/migration/config/TaskVersion、三镜像 local digest/SPDX SBOM，以及 CI-only canonical GHCR push + remote digest verify 合同；见 24 | 本地两态/负向/dry-run PASS；实际 push、受保护 main、远端 CI/registry 回执仍由主任务执行 | 远端闭环合同可交主任务复验；`CANDIDATE_BASELINE_READY` 仍取决于外部证据 |

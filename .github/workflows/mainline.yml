@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: wp07-mainline-${{ github.ref }}
@@ -28,9 +29,26 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: make ci-main
       - run: make candidate-package
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push commit-tagged candidate images and verify registry digests
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: make candidate-registry-push
+        env:
+          WP07_REGISTRY_PUSH: "1"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: wp07-candidate-${{ github.sha }}
-          path: artifacts/wp07-candidate/
+          path: |
+            artifacts/wp07-candidate/release-manifest.json
+            artifacts/wp07-candidate/api.spdx.json
+            artifacts/wp07-candidate/web.spdx.json
+            artifacts/wp07-candidate/worker.spdx.json
+            artifacts/wp07-candidate/task-versions.json
           if-no-files-found: error
           retention-days: 14

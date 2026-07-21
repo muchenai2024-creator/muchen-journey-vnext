@@ -4,11 +4,15 @@ WP07_SHA := $(shell git rev-parse --verify HEAD 2>/dev/null || printf no-head)
 WP07_API_IMAGE := $(WP07_IMAGE_PREFIX)-api:$(WP07_SHA)
 WP07_WEB_IMAGE := $(WP07_IMAGE_PREFIX)-web:$(WP07_SHA)
 WP07_WORKER_IMAGE := $(WP07_IMAGE_PREFIX)-worker:$(WP07_SHA)
+WP07_GHCR_PREFIX ?= ghcr.io/muchenai2024-creator/muchen-journey-vnext
+WP07_API_GHCR_IMAGE := $(WP07_GHCR_PREFIX)-api:$(WP07_SHA)
+WP07_WEB_GHCR_IMAGE := $(WP07_GHCR_PREFIX)-web:$(WP07_SHA)
+WP07_WORKER_GHCR_IMAGE := $(WP07_GHCR_PREFIX)-worker:$(WP07_SHA)
 WP07_GITLEAKS_IMAGE := ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
 WP07_SYFT_IMAGE := anchore/syft@sha256:b4f1df79f97b817682d8b5ff941eb6bfe74f6172553a5e312c75bbc2eabc405c
 WP07_PYTHON_IMAGE := python:3.14.6-slim@sha256:cea0e6040540fb2b965b6e7fb5ffa00871e632eef63719f0ea54bca189ce14a6
 
-.PHONY: bootstrap up down migrate seed api-test migration-check web-install web-static web-check openapi-check isolation-check legacy-reference-scan traceability-check secret-scan dependency-audit ci-fast ci-main candidate-preflight candidate-images candidate-task-versions candidate-sboms candidate-package http-negative-check verify wp06-backup wp06-drill wp06-alert-sim release-gate release-gate-check
+.PHONY: bootstrap up down migrate seed api-test migration-check web-install web-static web-check openapi-check isolation-check legacy-reference-scan traceability-check secret-scan dependency-audit ci-fast ci-main candidate-preflight candidate-images candidate-task-versions candidate-sboms candidate-package candidate-registry-check candidate-registry-push http-negative-check verify wp06-backup wp06-drill wp06-alert-sim release-gate release-gate-check
 
 bootstrap:
 	docker compose build api worker
@@ -102,6 +106,22 @@ candidate-package:
 	$(MAKE) candidate-sboms
 	python3 scripts/wp07_candidate.py generate --output $(WP07_ARTIFACT_DIR)/release-manifest.json --task-versions $(WP07_ARTIFACT_DIR)/task-versions.json --image api=$(WP07_API_IMAGE) --image web=$(WP07_WEB_IMAGE) --image worker=$(WP07_WORKER_IMAGE) --sbom api=$(WP07_ARTIFACT_DIR)/api.spdx.json --sbom web=$(WP07_ARTIFACT_DIR)/web.spdx.json --sbom worker=$(WP07_ARTIFACT_DIR)/worker.spdx.json
 	python3 scripts/wp07_candidate.py verify $(WP07_ARTIFACT_DIR)/release-manifest.json
+
+candidate-registry-check:
+	python3 scripts/wp07_candidate.py registry-check --commit $(WP07_SHA) --registry-image api=$(WP07_API_GHCR_IMAGE) --registry-image web=$(WP07_WEB_GHCR_IMAGE) --registry-image worker=$(WP07_WORKER_GHCR_IMAGE)
+
+candidate-registry-push: candidate-registry-check
+	@test "$(GITHUB_ACTIONS)" = "true"
+	@test "$(GITHUB_EVENT_NAME)" = "push"
+	@test "$(GITHUB_REF)" = "refs/heads/main"
+	@test "$(WP07_REGISTRY_PUSH)" = "1"
+	docker tag $(WP07_API_IMAGE) $(WP07_API_GHCR_IMAGE)
+	docker tag $(WP07_WEB_IMAGE) $(WP07_WEB_GHCR_IMAGE)
+	docker tag $(WP07_WORKER_IMAGE) $(WP07_WORKER_GHCR_IMAGE)
+	docker push $(WP07_API_GHCR_IMAGE)
+	docker push $(WP07_WEB_GHCR_IMAGE)
+	docker push $(WP07_WORKER_GHCR_IMAGE)
+	python3 scripts/wp07_candidate.py registry --manifest $(WP07_ARTIFACT_DIR)/release-manifest.json --registry-image api=$(WP07_API_GHCR_IMAGE) --registry-image web=$(WP07_WEB_GHCR_IMAGE) --registry-image worker=$(WP07_WORKER_GHCR_IMAGE)
 
 http-negative-check:
 	python3 scripts/wp06_ops.py http-negative
