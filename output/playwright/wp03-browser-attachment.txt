@@ -1,0 +1,2 @@
+WP-03 browser smoke attachment.
+This local fixture verifies the approved TXT upload, scan, isolation, binding, and immutable history path.

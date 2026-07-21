@@ -1,0 +1,111 @@
+name: journey-next
+
+services:
+  db:
+    image: postgres:18.1-alpine@sha256:aa6eb304ddb6dd26df23d05db4e5cb05af8951cda3e0dc57731b771e0ef4ab29
+    environment:
+      POSTGRES_DB: journey_next_dev
+      POSTGRES_USER: journey_next
+      POSTGRES_PASSWORD: journey_next_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U journey_next -d journey_next_dev"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "5432:5432"
+    volumes:
+      - journey_next_db:/var/lib/postgresql
+
+  db-test:
+    image: postgres:18.1-alpine@sha256:aa6eb304ddb6dd26df23d05db4e5cb05af8951cda3e0dc57731b771e0ef4ab29
+    environment:
+      POSTGRES_DB: journey_next_test
+      POSTGRES_USER: journey_next
+      POSTGRES_PASSWORD: journey_next_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U journey_next -d journey_next_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      APP_ENV: local
+      APP_RELEASE: wp06-local-no-head
+      CONFIG_SCHEMA_VERSION: 1
+      DATABASE_URL: postgresql+psycopg://journey_next:journey_next_dev@db:5432/journey_next_dev
+      ALLOWED_HOSTS: localhost,127.0.0.1,api
+      ALLOW_FIXTURE_IDENTITY: "true"
+      SESSION_SECRET: journey-next-local-session-secret-change-me
+      INVITE_SECRET: journey-next-local-invite-secret-change-me
+      IMPORT_SIGNING_KEY: journey-next-local-import-signing-key-change-me
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["sh", "-c", "alembic upgrade head && python -m journey_api.seed && uvicorn journey_api.main:app --host 0.0.0.0 --port 8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      APP_ENV: local
+      APP_RELEASE: wp06-local-no-head
+      CONFIG_SCHEMA_VERSION: 1
+      DATABASE_URL: postgresql+psycopg://journey_next:journey_next_dev@db:5432/journey_next_dev
+      NOTIFICATION_ADAPTER: LOCAL_TEST
+      LOCAL_NOTIFICATION_BEHAVIOR: success
+      NOTIFICATION_MAX_ATTEMPTS: 3
+      NOTIFICATION_RETRY_BASE_SECONDS: 5
+      OUTBOX_LEASE_SECONDS: 30
+      WORKER_POLL_SECONDS: 2
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: "on-failure:3"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; from datetime import UTC, datetime, timedelta; from sqlalchemy import text; from journey_api.db import SessionLocal; s=SessionLocal(); row=s.execute(text(\"SELECT release, last_seen_at FROM worker_heartbeats WHERE worker_name='notification-worker'\")).one(); s.close(); assert row.release == os.environ['APP_RELEASE'] and row.last_seen_at >= datetime.now(UTC)-timedelta(seconds=15)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  web:
+    build:
+      context: apps/web
+      dockerfile: Dockerfile
+    environment:
+      APP_ENV: local
+      APP_RELEASE: wp06-local-no-head
+      CONFIG_SCHEMA_VERSION: 1
+      API_INTERNAL_URL: http://api:8000
+      ALLOW_FIXTURE_IDENTITY: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/ops').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  journey_next_db:

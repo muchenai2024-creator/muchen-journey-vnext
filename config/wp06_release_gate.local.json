@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "candidate": "wp06-local-no-head",
+  "checks": {
+    "local_automated_suite": "PASS",
+    "empty_database_migration": "PASS",
+    "persistent_database_migration_rollback": "PASS",
+    "compose_health": "PASS",
+    "http_permission_negative": "PASS",
+    "browser_three_viewports": "PASS",
+    "dependency_security_audits": "PASS",
+    "local_backup_isolated_restore": "PASS",
+    "local_alert_and_rollback_drills": "PASS",
+    "real_human_uat": "NOT_RUN",
+    "real_external_notification": "NOT_RUN",
+    "staging_validation": "NOT_RUN",
+    "production_preflight": "NOT_RUN",
+    "physical_acl_validation": "NOT_RUN",
+    "off_host_backup_restore": "NOT_RUN",
+    "release_approvals": "NOT_RUN",
+    "real_observation_window": "NOT_RUN"
+  }
+}

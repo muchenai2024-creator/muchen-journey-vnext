@@ -1,0 +1,15 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": true,
+      "executablePath": "/Users/liumowen/Library/Caches/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-mac-arm64/chrome-headless-shell"
+    },
+    "contextOptions": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    }
+  }
+}

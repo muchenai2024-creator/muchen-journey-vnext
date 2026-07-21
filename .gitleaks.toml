@@ -1,0 +1,16 @@
+title = "Muchen Journey vNext secret scan"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated and ignored local outputs are outside the candidate source tree."
+paths = ['''(^|/)(\.git|artifacts|apps/web/(\.next|node_modules))(/|$)''']
+
+[[allowlists]]
+description = "Known WP-06 negative-test idempotency value, not a credential."
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+regexes = ['''idempotency_key="wp06-negative-scope"''']
+paths = ['''scripts/wp06_ops\.py$''']
