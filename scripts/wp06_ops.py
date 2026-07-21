@@ -583,8 +583,11 @@ def http_request(
     if body is not None:
         data = canonical_json(body)
         headers["Content-Type"] = "application/json"
+    api_port = int(os.environ.get("MJ_API_PORT", "8000"))
+    if not 1 <= api_port <= 65535:
+        raise OpsError("MJ_API_PORT must be a valid TCP port")
     request = urllib.request.Request(
-        f"http://127.0.0.1:8000{path}", data=data, headers=headers, method=method
+        f"http://127.0.0.1:{api_port}{path}", data=data, headers=headers, method=method
     )
     try:
         response = urllib.request.urlopen(request, timeout=5)

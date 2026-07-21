@@ -13,7 +13,7 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${MJ_DB_PORT:-5432}:5432"
     volumes:
       - journey_next_db:/var/lib/postgresql
 
@@ -55,7 +55,7 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${MJ_API_PORT:-8000}:8000"
 
   worker:
     build:
@@ -99,7 +99,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${MJ_WEB_PORT:-3000}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/ops').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 5s
