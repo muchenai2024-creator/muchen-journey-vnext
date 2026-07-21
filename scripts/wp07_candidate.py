@@ -220,7 +220,7 @@ def generate(task_path: Path, image_args: Iterable[str], sbom_args: Iterable[str
         image_manifest[component] = {
             "reference": images[component],
             "local_image_digest": inspected["Id"],
-            "registry_digests": sorted(inspected.get("RepoDigests") or []),
+            "registry_digest": None,
             "revision_label": commit,
             "sbom": {
                 "format": "SPDX-JSON",
@@ -267,9 +267,27 @@ def verify(path: Path) -> dict[str, Any]:
         raise CandidateError("manifest migration/config drifted")
     for component in COMPONENTS:
         item = value.get("images", {}).get(component, {})
-        sbom_path = ROOT / item.get("sbom", {}).get("path", "missing")
-        if item.get("revision_label") != commit or item.get("sbom", {}).get("sha256") != sha256(
-            sbom_path
+        if not isinstance(item, dict):
+            raise CandidateError(f"manifest image entry is invalid: {component}")
+        reference = item.get("reference")
+        sbom = item.get("sbom")
+        if not isinstance(reference, str) or not isinstance(sbom, dict):
+            raise CandidateError(f"manifest image/SBOM entry is invalid: {component}")
+        sbom_relative = sbom.get("path")
+        if not isinstance(sbom_relative, str):
+            raise CandidateError(f"manifest SBOM path is invalid: {component}")
+        sbom_path = (ROOT / sbom_relative).resolve()
+        if not sbom_path.is_relative_to(ROOT):
+            raise CandidateError(f"manifest SBOM path escapes the repository: {component}")
+        inspected = json.loads(run(("docker", "image", "inspect", reference)))[0]
+        labels = inspected.get("Config", {}).get("Labels") or {}
+        if (
+            item.get("local_image_digest") != inspected.get("Id")
+            or item.get("registry_digest") is not None
+            or item.get("revision_label") != labels.get("org.opencontainers.image.revision")
+            or item.get("revision_label") != commit
+            or not str(json.loads(sbom_path.read_text())["spdxVersion"]).startswith("SPDX-")
+            or sbom.get("sha256") != sha256(sbom_path)
         ):
             raise CandidateError(f"manifest image/SBOM drifted: {component}")
     return {"candidate_sha": commit, "manifest_sha256": sha256(path)}
