@@ -1,19 +1,19 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`STOPPED_BUDGET_GATE_NO_DEPLOY`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。
+状态：`BUDGET_REAUTHORIZED_PATCHED_CANDIDATE_PENDING`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。
 
 ## 1. 已锁定授权
 
 - Provider：火山引擎；Region：华北2（北京），ID=`cn-beijing`；
-- 计费：全部按量计费（`PostPaid`）；月度硬上限：`¥500`；
-- 候选：`ff07ce47d20f3f6eb09d633b09292628fbb58e2a`；
+- 计费：全部按量计费（`PostPaid`）；月度硬上限：`¥800`；
+- 已停止的旧候选：`ff07ce47d20f3f6eb09d633b09292628fbb58e2a`；实际部署候选须包含 Next.js 16.2.11 / sharp 0.35.3 修复并重新锁定完整 SHA；
 - 入口：`https://staging-vnext.muchenai.com`；
 - 资源：独立 IAM 项目/CI 子用户、VPC、子网、安全组、ECS、RDS PostgreSQL、TOS、委派 DNS 子区与 TLS；
-- Owner：Liu Mowen。上述授权不包含 production、旧系统变更、真实飞书消息、真人 UAT 或扩大月预算。
+- Owner：Liu Mowen。上述授权不包含 production、旧系统变更、真实飞书消息、真人 UAT 或将月预算扩大到 ¥800 以上。
 
-`config/wp08_staging.json` 是机器合同。官方价格计算器同日明细未写入 `approved_monthly_estimate_cny` 时，`make wp08-staging-apply-check` 必须失败；合计高于 ¥500 时同样失败。
+`config/wp08_staging.json` 是机器合同。官方价格计算器同日总额未写入 `approved_monthly_estimate_cny` 时，`make wp08-staging-apply-check` 必须失败；合计高于 ¥800 时同样失败。
 
-2026-07-22 的官方报价核验已证明当前授权组合无法落入 ¥500/月：ECS 约 ¥177.26/月，最小 RDS PostgreSQL 高可用主备约 ¥540/月，两项小计 ¥717.26/月且尚未包含 TOS、备份和公网流量。不得执行本节以下 bootstrap；用户需开启新的执行尝试并明确提高预算，或重新批准数据库架构变更。
+2026-07-22 的首次官方报价证明 ¥500/月不足：ECS 约 ¥177.26/月，最小 RDS PostgreSQL 高可用主备约 ¥540/月，两项小计 ¥717.26/月且尚未包含 TOS、备份和公网流量；该次尝试已停止且未创建资源。用户随后将上限提高为 ¥800 并保留托管 RDS。新尝试须先完成 Next.js/sharp 安全修复的新候选和同日总报价刷新；两者完成前不得执行本节以下 bootstrap。
 
 ## 2. 资源边界
 
@@ -36,7 +36,7 @@ Bootstrap 必须由主账号 Owner 在火山引擎控制台完成，不能使用
 5. 创建 `staging-vnext.muchenai.com` 独立 DNS 子区，将控制台分配的 NS 记录委派到 `muchenai.com`；把子区 ID 写入 Environment secret `WP08_DNS_ZONE_ID`；
 6. 创建 staging-only Ed25519 deploy key；私钥/公钥分别写入 `WP08_DEPLOY_SSH_PRIVATE_KEY` / `WP08_DEPLOY_SSH_PUBLIC_KEY`；
 7. 从 RDS 控制台下载当前 CA PEM，base64 后写入 `WP08_RDS_CA_PEM_B64`；不复用旧服务器上的 CA 文件；
-8. 建立费用预算 ¥500/月并设置 50%、80%、100% 告警。预算告警不是强制停机，Terraform 的报价门禁仍必须执行。
+8. 建立费用预算 ¥800/月并设置 50%、80%、100% 告警。预算告警不是强制停机，Terraform 的报价门禁仍必须执行。
 
 GitHub `staging` Environment 还需设置：
 
@@ -70,5 +70,5 @@ Workflow 顺序固定：合同检查 → TOS remote state init → Terraform val
 
 - 应用失败：`deploy.sh` 尝试重新启动 `PREVIOUS_RELEASE`；不回滚已接受业务事实，不自动 downgrade migration。
 - Terraform apply 失败：保留 state 和精确 plan/error，先关闭临时 SSH `/32`；不得无审查重复 apply。
-- 预算预测或实际成本超过 ¥500、候选/digest 不一致、CA/域名/ACL 不合格、旧资源引用出现：立即 `STOPPED / NO DEPLOY`。
+- 预算预测或实际成本超过 ¥800、候选/digest 不一致、CA/域名/ACL 不合格、旧资源引用出现：立即 `STOPPED / NO DEPLOY`。
 - 首次部署无 previous release；失败时停止新容器，保留 RDS/TOS 供诊断。删除付费资源属于单独破坏性操作，需用户再次明确授权并先保留必要证据。

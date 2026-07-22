@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-22
-状态：`STOPPED_BUDGET_GATE_NO_DEPLOY`
+状态：`BUDGET_REAUTHORIZED_PATCHED_CANDIDATE_PENDING`
 候选：`ff07ce47d20f3f6eb09d633b09292628fbb58e2a`
 整体发布：`NO_GO`
 
@@ -23,7 +23,7 @@
 - 没有运行 migration、seed、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；
 - candidate manifest 的 deployment 仍须保持 `NOT_RUN`。
 
-因此该状态不代表 physical staging、发布 GO 或 WP-08 关闭。当前报价已触发预算停止条件，禁止执行 bootstrap 或 dispatch staging workflow。
+因此该状态不代表 physical staging、发布 GO 或 WP-08 关闭。首次报价触发的停止事实保持不变；后续预算重授权作为新的执行尝试单独记录。
 
 ## 2026-07-22 预算门禁
 
@@ -34,3 +34,21 @@
 - 私有截图和失败记录引用：`PEV-WP08-20260722-BUDGET_GATE`。不含账号 ID、资源 ID、endpoint、凭据或 PII。
 
 预算门禁触发后，本次执行状态为 `STOPPED / NO DEPLOY`。未创建 IAM、项目、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；未配置云凭据，未 dispatch staging workflow，WP-09 不得启动。后续只能由用户开启新的、范围明确的执行尝试：提高预算，或重新批准不使用托管 RDS 的架构变更。
+
+## 2026-07-22 预算重授权与安全候选要求
+
+- 用户将月预算上限提高到 ¥800，并明确保留火山引擎托管 PostgreSQL RDS；Region 与按量计费不变；
+- 已核 ECS + RDS 固定基线仍为 ¥717.26/月，低于新上限，理论余量约 ¥82.74；TOS、备份和公网流量属于用量型费用，创建前必须刷新同日总报价并保持在 ¥800 内；
+- 用户同时授权把 Next.js 固定到 16.2.11，并通过 npm override 将 sharp 固定到 0.35.3，完成兼容性和安全复验；
+- 旧候选 `ff07ce47d20f3f6eb09d633b09292628fbb58e2a` 不再作为实际部署版本。必须等待包含安全修复的新完整候选 SHA、远端 required check 与 GHCR digest 验证后，再更新机器合同并启动物理 staging；
+- 在此之前 `approved_monthly_estimate_cny` 保持 `null`，apply 门禁继续 fail closed，云端仍不写入。
+
+本地兼容性与安全复验结果：
+
+- `npm ls next eslint-config-next sharp --all`：Next.js 16.2.11、eslint-config-next 16.2.11、sharp 0.35.3 overridden；
+- `npm audit --audit-level=low`：0 vulnerabilities；固定 Python 锁文件审计：No known vulnerabilities found；
+- `make web-check`：lint、TypeScript、Next.js 16.2.11 production build 全部通过；
+- `make ci-fast` 与 `make ci-main`：96 tests passed，OpenAPI、隔离、gitleaks、迁移、HTTP 权限负向和发布 NO_GO 合同全部通过；
+- `make wp08-staging-readiness`：PASS，预算合同已为 ¥800；`make wp08-staging-apply-check` 按设计以“重授权后须刷新同日总报价”失败，不构成部署失败。
+
+上述是本地机器门禁证据。远端 required check、main 候选打包、GHCR digest 与 physical staging 仍为 `NOT_RUN`。

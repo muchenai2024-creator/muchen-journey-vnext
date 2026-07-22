@@ -46,8 +46,8 @@ def load_contract(path: Path = CONTRACT) -> dict[str, object]:
         raise StagingError("WP-08 region must be cn-beijing")
     if data["billing_mode"] != "PostPaid":
         raise StagingError("WP-08 billing must be PostPaid")
-    if data["monthly_budget_cny"] != 500:
-        raise StagingError("WP-08 budget must be exactly CNY 500")
+    if data["monthly_budget_cny"] != 800:
+        raise StagingError("WP-08 budget must be exactly CNY 800")
     if not FULL_SHA.fullmatch(str(data["candidate_commit"])):
         raise StagingError("candidate_commit must be one full lowercase SHA")
     origin = urlparse(str(data["staging_origin"]))
@@ -59,15 +59,25 @@ def load_contract(path: Path = CONTRACT) -> dict[str, object]:
     if latest_cost is not None:
         if not isinstance(latest_cost, dict):
             raise StagingError("latest_cost_evidence must be an object")
-        if latest_cost.get("status") != "OVER_BUDGET_NO_DEPLOY":
+        status = latest_cost.get("status")
+        if status not in {
+            "OVER_BUDGET_NO_DEPLOY",
+            "BASELINE_WITHIN_BUDGET_QUOTE_REFRESH_REQUIRED",
+        }:
             raise StagingError("latest cost evidence has an unsupported status")
         subtotal = latest_cost.get("subtotal_before_tos_backup_and_traffic_cny")
         if isinstance(subtotal, bool) or not isinstance(subtotal, (int, float)):
             raise StagingError("latest cost subtotal must be numeric")
-        if subtotal <= data["monthly_budget_cny"]:
-            raise StagingError("over-budget evidence must exceed the authorized ceiling")
-        if data["approved_monthly_estimate_cny"] is not None:
-            raise StagingError("an over-budget quote cannot be approved for apply")
+        if status == "OVER_BUDGET_NO_DEPLOY":
+            if subtotal <= data["monthly_budget_cny"]:
+                raise StagingError("over-budget evidence must exceed the authorized ceiling")
+            if data["approved_monthly_estimate_cny"] is not None:
+                raise StagingError("an over-budget quote cannot be approved for apply")
+        else:
+            if subtotal > data["monthly_budget_cny"]:
+                raise StagingError("within-budget baseline exceeds the authorized ceiling")
+            if data["approved_monthly_estimate_cny"] is not None:
+                raise StagingError("quote-refresh baseline cannot be approved for apply")
     return data
 
 
@@ -115,6 +125,14 @@ def validate_cost(data: dict[str, object], *, require_quote: bool) -> None:
             if isinstance(latest_cost, dict) and latest_cost.get("status") == "OVER_BUDGET_NO_DEPLOY":
                 raise StagingError(
                     "latest official quote exceeds the authorized budget; new authorization is required"
+                )
+            if (
+                isinstance(latest_cost, dict)
+                and latest_cost.get("status")
+                == "BASELINE_WITHIN_BUDGET_QUOTE_REFRESH_REQUIRED"
+            ):
+                raise StagingError(
+                    "same-day total quote must be refreshed after budget reauthorization"
                 )
             raise StagingError("same-day official monthly estimate is not recorded")
         return
