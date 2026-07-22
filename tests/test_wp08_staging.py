@@ -100,13 +100,3 @@ def test_approved_quote_matches_forecast_and_budget(tmp_path: Path):
     path.write_text(json.dumps(payload))
     with pytest.raises(staging.StagingError, match="forecast differ"):
         staging.load_contract(path)
-
-
-def test_staging_workflow_bootstraps_rds_before_requiring_its_ca():
-    workflow = (staging.ROOT / ".github/workflows/staging.yml").read_text()
-
-    assert "- provision\n          - deploy" in workflow
-    assert "WP08_PHASE: ${{ inputs.phase }}" in workflow
-    assert 'if [[ "$WP08_PHASE" == "deploy" ]]' in workflow
-    assert workflow.count("if: inputs.phase == 'deploy'") == 3
-    assert "if: always() && steps.infrastructure.outcome == 'success'" in workflow

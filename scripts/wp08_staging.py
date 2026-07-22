@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "config" / "wp08_staging.json"
+WORKFLOW = ROOT / ".github" / "workflows" / "staging.yml"
 PRIVATE_EVIDENCE = ROOT / "evidence" / "private" / "wp08"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -167,6 +168,22 @@ def check(phase: str) -> None:
     )
 
 
+def validate_workflow(path: Path = WORKFLOW) -> None:
+    workflow = path.read_text()
+    required = (
+        "- provision\n          - deploy",
+        "WP08_PHASE: ${{ inputs.phase }}",
+        'if [[ "$WP08_PHASE" == "deploy" ]]',
+        "if: always() && steps.infrastructure.outcome == 'success'",
+    )
+    for marker in required:
+        if marker not in workflow:
+            raise StagingError(f"staging workflow is missing bootstrap marker: {marker}")
+    if workflow.count("if: inputs.phase == 'deploy'") != 3:
+        raise StagingError("staging workflow deploy-only step count must be exactly 3")
+    print("WP08_STAGING_WORKFLOW=PASS phases=provision,deploy")
+
+
 def command_output(*args: str) -> str:
     result = subprocess.run(
         args,
@@ -212,6 +229,7 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", required=True)
     check_parser = subparsers.add_parser("check")
     check_parser.add_argument("--phase", choices=("readiness", "apply"), required=True)
+    subparsers.add_parser("workflow-check")
     evidence_parser = subparsers.add_parser("record")
     evidence_parser.add_argument("--status", required=True)
     evidence_parser.add_argument("--reference", required=True)
@@ -219,6 +237,8 @@ def main() -> None:
     try:
         if args.command == "check":
             check(args.phase)
+        elif args.command == "workflow-check":
+            validate_workflow()
         else:
             record_evidence(args.status, args.reference)
     except (OSError, ValueError, json.JSONDecodeError, subprocess.CalledProcessError, StagingError) as error:
