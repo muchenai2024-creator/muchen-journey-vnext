@@ -25,6 +25,14 @@
 
 因此该状态不代表 physical staging、发布 GO 或 WP-08 关闭。首次报价触发的停止事实保持不变；后续预算重授权作为新的执行尝试单独记录。
 
+## 2026-07-22 首次物理 Provision 与最小权限复盘
+
+- GitHub staging run `29929929570` 使用完整候选和已批准确认词执行 `phase=provision`；候选合同、远端加密 state 初始化均通过，并创建了首批项目隔离资源；未运行 migration、seed、应用部署或外部 TLS 验证；
+- 原先项目作用域的 `CloudControlFullAccess` 被 CloudControl API 拒绝。按用户明确授权，仅将该控制面策略改为全局；DNS/ECS/RDS PostgreSQL/Tag/VPC/TOS 六项服务策略逐项复核后仍限定 `journey-next-staging`；
+- 重试 run `29929929570` 已越过 CloudControl 403，但在安全组创建冲突以及 ECS KeyPair 创建后的 `DescribeKeyPairs` 项目权限检查处停止；该 run 不得原样重试；
+- 为保持 ECS 最小权限，不把 `ECSFullAccess` 扩大为全局。部署公钥改由 ECS cloud-init 写入 root `authorized_keys`，取消账号级 ECS KeyPair 资源；安全组、ECS、RDS、TOS 和 DNS 仍显式绑定 staging 项目或 staging 子区；
+- 失败 run 产生的 Terraform partial state 和可能的孤立 KeyPair/安全组必须在下一次 apply 前完成精确核对；不得删除付费资源或扩大权限来绕过收敛。
+
 ## 2026-07-22 预算门禁
 
 - 火山引擎官方价格计算器核验：华北2（北京）、按量计费、共享型 ECS `ecs.e-c1m2.large`（2C4G）、Linux、40 GiB PL0、EIP 按流量计费，按 720 小时估算为 ¥177.26/月；
