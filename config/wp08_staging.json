@@ -6,6 +6,16 @@
   "billing_mode": "PostPaid",
   "monthly_budget_cny": 500,
   "approved_monthly_estimate_cny": null,
+  "latest_cost_evidence": {
+    "checked_on": "2026-07-22",
+    "status": "OVER_BUDGET_NO_DEPLOY",
+    "ecs_monthly_estimate_cny": 177.26,
+    "rds_postgresql_minimum_monthly_estimate_cny": 540.0,
+    "subtotal_before_tos_backup_and_traffic_cny": 717.26,
+    "budget_gap_cny": 217.26,
+    "source": "official_volcengine_calculator_and_console_order_estimate",
+    "private_evidence_reference": "PEV-WP08-20260722-BUDGET_GATE"
+  },
   "candidate_commit": "ff07ce47d20f3f6eb09d633b09292628fbb58e2a",
   "staging_origin": "https://staging-vnext.muchenai.com",
   "resource_prefix": "journey-next-staging",

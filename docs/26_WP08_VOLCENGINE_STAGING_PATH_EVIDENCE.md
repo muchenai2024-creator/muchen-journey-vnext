@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-22
-状态：`IMPLEMENTATION_PATH_READY_CLOUD_NOT_APPLIED`
+状态：`STOPPED_BUDGET_GATE_NO_DEPLOY`
 候选：`ff07ce47d20f3f6eb09d633b09292628fbb58e2a`
 整体发布：`NO_GO`
 
@@ -17,10 +17,20 @@
 
 ## 当前未发生
 
-- 火山引擎控制台尚未登录；未创建 IAM、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；
+- 火山引擎控制台已登录并只执行只读报价核验；未创建 IAM、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；
 - 同日官方价格计算器总额仍未写入，`approved_monthly_estimate_cny=null`，因此 apply 门禁按设计失败；
 - GitHub `staging` Environment 的火山引擎身份与 vNext secrets 尚未配置；
 - 没有运行 migration、seed、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；
 - candidate manifest 的 deployment 仍须保持 `NOT_RUN`。
 
-因此该状态只代表 reviewed implementation path ready，不代表 physical staging、发布 GO 或 WP-08 关闭。下一动作是 Owner 登录火山引擎主账号，按 runbook 完成一次性 bootstrap 和同日报价；随后才允许 dispatch 唯一 staging workflow。
+因此该状态不代表 physical staging、发布 GO 或 WP-08 关闭。当前报价已触发预算停止条件，禁止执行 bootstrap 或 dispatch staging workflow。
+
+## 2026-07-22 预算门禁
+
+- 火山引擎官方价格计算器核验：华北2（北京）、按量计费、共享型 ECS `ecs.e-c1m2.large`（2C4G）、Linux、40 GiB PL0、EIP 按流量计费，按 720 小时估算为 ¥177.26/月；
+- 火山引擎 PostgreSQL 创建页核验：当前最小高可用配置为 1C2G 主节点 + 1C2G 备节点，配置费用 ¥0.75/小时，即 ¥540/月；
+- 两项小计已达 ¥717.26/月，尚未计入 TOS、备份和实际公网出流量，比授权上限 ¥500 高 ¥217.26；
+- `approved_monthly_estimate_cny` 继续保持 `null`，`make wp08-staging-apply-check` 必须失败；
+- 私有截图和失败记录引用：`PEV-WP08-20260722-BUDGET_GATE`。不含账号 ID、资源 ID、endpoint、凭据或 PII。
+
+预算门禁触发后，本次执行状态为 `STOPPED / NO DEPLOY`。未创建 IAM、项目、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；未配置云凭据，未 dispatch staging workflow，WP-09 不得启动。后续只能由用户开启新的、范围明确的执行尝试：提高预算，或重新批准不使用托管 RDS 的架构变更。

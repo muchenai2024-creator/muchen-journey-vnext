@@ -1,6 +1,6 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`REVIEWED_PATH_PENDING_CLOUD_BOOTSTRAP`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。
+状态：`STOPPED_BUDGET_GATE_NO_DEPLOY`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。
 
 ## 1. 已锁定授权
 
@@ -12,6 +12,8 @@
 - Owner：Liu Mowen。上述授权不包含 production、旧系统变更、真实飞书消息、真人 UAT 或扩大月预算。
 
 `config/wp08_staging.json` 是机器合同。官方价格计算器同日明细未写入 `approved_monthly_estimate_cny` 时，`make wp08-staging-apply-check` 必须失败；合计高于 ¥500 时同样失败。
+
+2026-07-22 的官方报价核验已证明当前授权组合无法落入 ¥500/月：ECS 约 ¥177.26/月，最小 RDS PostgreSQL 高可用主备约 ¥540/月，两项小计 ¥717.26/月且尚未包含 TOS、备份和公网流量。不得执行本节以下 bootstrap；用户需开启新的执行尝试并明确提高预算，或重新批准数据库架构变更。
 
 ## 2. 资源边界
 

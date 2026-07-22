@@ -55,6 +55,19 @@ def load_contract(path: Path = CONTRACT) -> dict[str, object]:
         raise StagingError("unexpected staging origin")
     if data["resource_prefix"] != "journey-next-staging":
         raise StagingError("unexpected resource prefix")
+    latest_cost = data.get("latest_cost_evidence")
+    if latest_cost is not None:
+        if not isinstance(latest_cost, dict):
+            raise StagingError("latest_cost_evidence must be an object")
+        if latest_cost.get("status") != "OVER_BUDGET_NO_DEPLOY":
+            raise StagingError("latest cost evidence has an unsupported status")
+        subtotal = latest_cost.get("subtotal_before_tos_backup_and_traffic_cny")
+        if isinstance(subtotal, bool) or not isinstance(subtotal, (int, float)):
+            raise StagingError("latest cost subtotal must be numeric")
+        if subtotal <= data["monthly_budget_cny"]:
+            raise StagingError("over-budget evidence must exceed the authorized ceiling")
+        if data["approved_monthly_estimate_cny"] is not None:
+            raise StagingError("an over-budget quote cannot be approved for apply")
     return data
 
 
@@ -98,6 +111,11 @@ def validate_cost(data: dict[str, object], *, require_quote: bool) -> None:
     estimate = data["approved_monthly_estimate_cny"]
     if estimate is None:
         if require_quote:
+            latest_cost = data.get("latest_cost_evidence")
+            if isinstance(latest_cost, dict) and latest_cost.get("status") == "OVER_BUDGET_NO_DEPLOY":
+                raise StagingError(
+                    "latest official quote exceeds the authorized budget; new authorization is required"
+                )
             raise StagingError("same-day official monthly estimate is not recorded")
         return
     if isinstance(estimate, bool) or not isinstance(estimate, (int, float)):
