@@ -31,10 +31,10 @@ Bootstrap 必须由主账号 Owner 在火山引擎控制台完成，不能使用
 
 1. 创建资源项目 `journey-next-staging`；
 2. 创建私有、版本化、SSE 加密的 TOS state bucket，名称使用 `journey-next-staging-tfstate-<random>`；
-3. 创建无控制台登录能力的 IAM 子用户 `journey-next-staging-ci`；只授权该项目中的 CloudControl/VPC/ECS/EIP/RDS PostgreSQL/TOS/KMS/Tag 操作和 state bucket 读写；不得授予旧项目或 IAM 管理权限；
+3. 创建无控制台登录能力的 IAM 子用户 `journey-next-staging-ci`；`CloudControlFullAccess` 必须为全局作用范围（CloudControl 控制面不接受项目作用域），VPC/ECS/EIP/RDS PostgreSQL/TOS/KMS/Tag 等底层服务权限仍只授权 `journey-next-staging` 项目及 state bucket 必需读写；不得授予旧项目或 IAM 管理权限；
 4. 创建一次 AK/SK，并直接写入 GitHub repo 的 `staging` Environment secrets `VOLCENGINE_ACCESS_KEY` / `VOLCENGINE_SECRET_KEY`；不得复制到聊天、shell history、文档或本地 `.env`；
 5. 创建 `staging-vnext.muchenai.com` 独立 DNS 子区，将控制台分配的 NS 记录委派到 `muchenai.com`；把子区 ID 写入 Environment secret `WP08_DNS_ZONE_ID`；
-6. 创建 staging-only Ed25519 deploy key；私钥/公钥分别写入 `WP08_DEPLOY_SSH_PRIVATE_KEY` / `WP08_DEPLOY_SSH_PUBLIC_KEY`；
+6. 创建 staging-only Ed25519 deploy key；私钥/公钥分别写入 `WP08_DEPLOY_SSH_PRIVATE_KEY` / `WP08_DEPLOY_SSH_PUBLIC_KEY`。Terraform 通过 ECS cloud-init 把公钥写入实例，不创建账号级 ECS KeyPair，避免为 KeyPair 的创建后读取扩大 ECS 全局权限；
 7. 建立费用预算 ¥800/月并设置 50%、80%、100% 告警。预算告警不是强制停机，Terraform 的报价门禁仍必须执行。
 
 GitHub `staging` Environment 还需设置：

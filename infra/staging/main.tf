@@ -83,14 +83,6 @@ resource "volcenginecc_vpc_security_group" "app" {
   tags = local.common_tags
 }
 
-resource "volcenginecc_ecs_keypair" "deploy" {
-  key_pair_name = "${var.resource_prefix}-deploy"
-  public_key    = var.ecs_ssh_public_key
-  project_name  = var.project_name
-  description   = "journey next staging GitHub environment deploy key"
-  tags          = local.common_tags
-}
-
 resource "volcenginecc_rdspostgresql_allow_list" "app" {
   allow_list_name     = "${replace(var.resource_prefix, "-", "_")}_app"
   allow_list_desc     = "journey next staging ECS security group only"
@@ -204,9 +196,6 @@ resource "volcenginecc_ecs_instance" "app" {
   install_run_command_agent = true
   stopped_mode              = "StopCharging"
   spot_strategy             = "NoSpot"
-  key_pair = {
-    key_pair_name = volcenginecc_ecs_keypair.deploy.key_pair_name
-  }
   image = {
     image_id                      = var.ecs_image_id
     security_enhancement_strategy = "Active"
@@ -240,6 +229,11 @@ resource "volcenginecc_ecs_instance" "app" {
       echo 'Unsupported base image package manager' >&2
       exit 1
     fi
+    install -d -m 0700 -o root -g root /root/.ssh
+    cat > /root/.ssh/authorized_keys <<'WP08_DEPLOY_PUBLIC_KEY'
+    ${var.ecs_ssh_public_key}
+    WP08_DEPLOY_PUBLIC_KEY
+    chmod 0600 /root/.ssh/authorized_keys
     systemctl enable --now docker
     install -d -m 0750 -o root -g root /srv/journey-next-staging/releases
     install -d -m 0700 -o root -g root /srv/journey-next-staging/secrets
