@@ -60,4 +60,4 @@
 - RDS 控制台同日刷新：PostgreSQL 17、高可用 1C2G 主备、20 GiB、按量计费为 ¥0.55/小时，即按 720 小时估算 ¥396/月；ECS 既有同日报价为 ¥177.26/月，固定基线 ¥573.26/月；
 - 预算模型保守计入单 AZ TOS 20 GiB ¥3/月、EIP 公网出流量 100 GiB ¥80/月；RDS 备份当前 0 折，DNS 子区与 ACME TLS 按 ¥0 计，月预测为 ¥656.26，距上限余 ¥143.74；
 - 私有报价证据引用 `PEV-WP08-20260722-QUOTE_REFRESH`，不含凭据、账号 ID、资源 ID、endpoint 或 PII；
-- 机器合同、Terraform、deploy bundle、工作流确认词及三镜像 digest 已重新绑定新候选。物理资源和 deployment 仍为 `NOT_RUN`，须待该绑定变更进入受保护主线后才允许执行唯一 staging workflow。
+- 机器合同、Terraform、deploy bundle、工作流确认词及三镜像 digest 已重新绑定新候选；staging workflow 在门禁前从 run `29888300206` 下载精确候选 artifact，不依赖本地忽略目录。物理资源和 deployment 仍为 `NOT_RUN`，须待该绑定变更进入受保护主线后才允许执行唯一 staging workflow。
