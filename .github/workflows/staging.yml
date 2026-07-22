@@ -8,7 +8,6 @@ on:
         required: true
         type: choice
         options:
-          - reconcile
           - provision
           - deploy
       candidate:
@@ -100,7 +99,6 @@ jobs:
             -backend-config="skip_s3_checksum=true"
           terraform validate
       - name: Open ephemeral deploy path and apply reviewed infrastructure
-        if: inputs.phase != 'reconcile'
         id: infrastructure
         working-directory: infra/staging
         run: |
@@ -129,19 +127,6 @@ jobs:
           echo "public_ip=$(terraform output -raw staging_public_ip)" >>"$GITHUB_OUTPUT"
           echo "rds_host=$(terraform output -raw rds_private_host)" >>"$GITHUB_OUTPUT"
           echo "rds_port=$(terraform output -raw rds_private_port)" >>"$GITHUB_OUTPUT"
-      - name: Reconcile existing ECS into encrypted remote state
-        if: inputs.phase == 'reconcile'
-        working-directory: infra/staging
-        run: |
-          resource='volcenginecc_ecs_instance.app'
-          if terraform state list | grep -Fxq "$resource"; then
-            echo "Existing ECS is already tracked in remote state"
-          else
-            terraform import -var="deploy_cidr=127.0.0.1/32" \
-              "$resource" \
-              'i-yer6lmc268wh2yqdtifj'
-          fi
-          terraform state show -no-color "$resource" >/dev/null
       - name: Prepare private deploy bundle
         if: inputs.phase == 'deploy'
         env:
