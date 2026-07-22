@@ -25,6 +25,42 @@ def contract(tmp_path: Path, *, estimate=None) -> Path:
     return path
 
 
+def infrastructure_files(tmp_path: Path) -> tuple[Path, Path]:
+    versions = tmp_path / "versions.tf"
+    versions.write_text('source  = "hashicorp/random"\nversion = "3.7.2"\n')
+    main = tmp_path / "main.tf"
+    main.write_text(
+        "\n".join(
+            (
+                'resource "random_password" "ecs_bootstrap" {',
+                'length           = 30',
+                'override_special = "!@#%^&*_-+=?"',
+                '}',
+                'password                  = random_password.ecs_bootstrap.result',
+                'PasswordAuthentication no',
+                'KbdInteractiveAuthentication no',
+                'PermitRootLogin prohibit-password',
+                'prevent_destroy = true',
+                'ignore_changes = [',
+                'eip_address.bandwidth_mbps',
+                'eip_address.charge_type',
+                'eip_address.isp',
+                'eip_address.release_with_instance',
+                'image.security_enhancement_strategy',
+                'install_run_command_agent',
+                'password',
+                'system_volume.delete_with_instance',
+                'system_volume.size',
+                'system_volume.volume_type',
+                'user_data',
+                ']',
+                'security_group_name = "journey-next-staging-app"',
+            )
+        )
+    )
+    return versions, main
+
+
 def test_contract_locks_provider_region_budget_and_origin(tmp_path: Path):
     data = staging.load_contract(contract(tmp_path))
     assert data["region_id"] == "cn-beijing"
@@ -103,25 +139,7 @@ def test_approved_quote_matches_forecast_and_budget(tmp_path: Path):
 
 
 def test_infrastructure_uses_state_only_bootstrap_password(tmp_path: Path, monkeypatch):
-    versions = tmp_path / "versions.tf"
-    versions.write_text(
-        'source  = "hashicorp/random"\nversion = "3.7.2"\n'
-    )
-    main = tmp_path / "main.tf"
-    main.write_text(
-        '\n'.join(
-            (
-                'resource "random_password" "ecs_bootstrap" {',
-                'length           = 30',
-                'override_special = "!@#%^&*_-+=?"',
-                '}',
-                'password                  = random_password.ecs_bootstrap.result',
-                'PasswordAuthentication no',
-                'KbdInteractiveAuthentication no',
-                'PermitRootLogin prohibit-password',
-            )
-        )
-    )
+    versions, main = infrastructure_files(tmp_path)
     monkeypatch.setattr(staging, "INFRA_VERSIONS", versions)
     monkeypatch.setattr(staging, "INFRA_MAIN", main)
     staging.validate_infrastructure()
@@ -129,3 +147,48 @@ def test_infrastructure_uses_state_only_bootstrap_password(tmp_path: Path, monke
     main.write_text(main.read_text().replace("PasswordAuthentication no", ""))
     with pytest.raises(staging.StagingError, match="bootstrap marker"):
         staging.validate_infrastructure()
+
+
+def test_infrastructure_rejects_unreviewed_ignore_set_and_empty_allowlist_ip(
+    tmp_path: Path, monkeypatch
+):
+    versions, main = infrastructure_files(tmp_path)
+    source = main.read_text()
+    main.write_text(source.replace("user_data\n", ""))
+    monkeypatch.setattr(staging, "INFRA_VERSIONS", versions)
+    monkeypatch.setattr(staging, "INFRA_MAIN", main)
+    with pytest.raises(staging.StagingError, match="ignore list differs"):
+        staging.validate_infrastructure()
+
+    main.write_text(source.replace("security_group_name", "ip_list = []\nsecurity_group_name", 1))
+    with pytest.raises(staging.StagingError, match="must omit an empty ip_list"):
+        staging.validate_infrastructure()
+
+
+def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, monkeypatch):
+    versions, main = infrastructure_files(tmp_path)
+    monkeypatch.setattr(staging, "INFRA_VERSIONS", versions)
+    monkeypatch.setattr(staging, "INFRA_MAIN", main)
+    workflow = tmp_path / "staging.yml"
+    source = "\n".join(
+        (
+            "- provision",
+            "          - deploy",
+            "WP08_PHASE: ${{ inputs.phase }}",
+            'if [[ "$WP08_PHASE" == "deploy" ]]',
+            "if: always() && steps.infrastructure.outcome == 'success'",
+            "if: inputs.phase == 'deploy'",
+            "if: inputs.phase == 'deploy'",
+            "if: inputs.phase == 'deploy'",
+            'terraform show -json "$plan_file" | python3 ../../scripts/wp08_plan_guard.py',
+            'terraform apply -auto-approve "$plan_file"',
+            'terraform show -json "$close_plan" | python3 ../../scripts/wp08_plan_guard.py',
+            'terraform apply -auto-approve "$close_plan"',
+        )
+    )
+    workflow.write_text(source)
+    staging.validate_workflow(workflow)
+
+    workflow.write_text(source.replace("scripts/wp08_plan_guard.py", "scripts/missing.py", 1))
+    with pytest.raises(staging.StagingError, match="every WP-08 apply path"):
+        staging.validate_workflow(workflow)

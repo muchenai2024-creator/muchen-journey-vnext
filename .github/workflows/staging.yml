@@ -114,16 +114,18 @@ jobs:
           PY
           echo "WP08_RUNNER_CIDR=$runner_ip/32" >>"$GITHUB_ENV"
           plan_error="$RUNNER_TEMP/wp08-plan-error.log"
-          if ! terraform plan -out=wp08.tfplan -var="deploy_cidr=$runner_ip/32" \
+          plan_file="$RUNNER_TEMP/wp08.tfplan"
+          if ! terraform plan -out="$plan_file" -var="deploy_cidr=$runner_ip/32" \
             2> >(tee "$plan_error" >&2); then
             if grep -Fq "InvalidTimestamp: The Signature of the request is expired" "$plan_error"; then
               echo "::warning::CloudControl plan request expired; retrying plan once with a fresh signature"
-              terraform plan -out=wp08.tfplan -var="deploy_cidr=$runner_ip/32"
+              terraform plan -out="$plan_file" -var="deploy_cidr=$runner_ip/32"
             else
               exit 1
             fi
           fi
-          terraform apply -auto-approve wp08.tfplan
+          terraform show -json "$plan_file" | python3 ../../scripts/wp08_plan_guard.py
+          terraform apply -auto-approve "$plan_file"
           echo "public_ip=$(terraform output -raw staging_public_ip)" >>"$GITHUB_OUTPUT"
           echo "rds_host=$(terraform output -raw rds_private_host)" >>"$GITHUB_OUTPUT"
           echo "rds_port=$(terraform output -raw rds_private_port)" >>"$GITHUB_OUTPUT"
@@ -166,4 +168,8 @@ jobs:
       - name: Close SSH ingress
         if: always() && steps.infrastructure.outcome == 'success'
         working-directory: infra/staging
-        run: terraform apply -auto-approve -var="deploy_cidr=127.0.0.1/32"
+        run: |
+          close_plan="$RUNNER_TEMP/wp08-close-ssh.tfplan"
+          terraform plan -out="$close_plan" -var="deploy_cidr=127.0.0.1/32"
+          terraform show -json "$close_plan" | python3 ../../scripts/wp08_plan_guard.py
+          terraform apply -auto-approve "$close_plan"

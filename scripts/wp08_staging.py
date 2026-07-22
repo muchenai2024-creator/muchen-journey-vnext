@@ -107,6 +107,7 @@ def validate_files() -> None:
         "deploy/staging/Caddyfile",
         "deploy/staging/grant_runtime.py",
         "deploy/staging/deploy.sh",
+        "scripts/wp08_plan_guard.py",
     ]
     for relative in required:
         path = ROOT / relative
@@ -132,6 +133,7 @@ def validate_infrastructure() -> None:
         'PasswordAuthentication no',
         'KbdInteractiveAuthentication no',
         'PermitRootLogin prohibit-password',
+        "prevent_destroy = true",
     )
     for marker in required_main:
         if marker not in main:
@@ -140,6 +142,31 @@ def validate_infrastructure() -> None:
         raise StagingError("ECS bootstrap password must have exactly one non-output consumer")
     if "key_pair_name" in main.lower():
         raise StagingError("staging ECS must not depend on an account-level KeyPair")
+    ignore_match = re.search(r"ignore_changes\s*=\s*\[(.*?)\]", main, re.DOTALL)
+    if ignore_match is None:
+        raise StagingError("staging ECS creation-only ignore list is missing")
+    ignored = {
+        line.strip().rstrip(",")
+        for line in ignore_match.group(1).splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    expected_ignored = {
+        "eip_address.bandwidth_mbps",
+        "eip_address.charge_type",
+        "eip_address.isp",
+        "eip_address.release_with_instance",
+        "image.security_enhancement_strategy",
+        "install_run_command_agent",
+        "password",
+        "system_volume.delete_with_instance",
+        "system_volume.size",
+        "system_volume.volume_type",
+        "user_data",
+    }
+    if ignored != expected_ignored:
+        raise StagingError("staging ECS creation-only ignore list differs from the reviewed set")
+    if re.search(r"\bip_list\s*=\s*\[\s*\]", main):
+        raise StagingError("AssociateEcsIp allowlist binding must omit an empty ip_list")
 
 
 def validate_candidate(data: dict[str, object]) -> None:
@@ -204,12 +231,28 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
         "WP08_PHASE: ${{ inputs.phase }}",
         'if [[ "$WP08_PHASE" == "deploy" ]]',
         "if: always() && steps.infrastructure.outcome == 'success'",
+        "terraform show -json",
+        "scripts/wp08_plan_guard.py",
+        'terraform apply -auto-approve "$plan_file"',
+        'terraform apply -auto-approve "$close_plan"',
     )
     for marker in required:
         if marker not in workflow:
             raise StagingError(f"staging workflow is missing bootstrap marker: {marker}")
     if workflow.count("if: inputs.phase == 'deploy'") != 3:
         raise StagingError("staging workflow deploy-only step count must be exactly 3")
+    if workflow.count("scripts/wp08_plan_guard.py") != 2:
+        raise StagingError("every WP-08 apply path must have one destructive-plan guard")
+    if "terraform apply -auto-approve -var=" in workflow:
+        raise StagingError("WP-08 apply must consume a reviewed and guarded saved plan")
+    guard_positions = [
+        match.start() for match in re.finditer(r"scripts/wp08_plan_guard\.py", workflow)
+    ]
+    apply_positions = [match.start() for match in re.finditer(r"terraform apply", workflow)]
+    if len(apply_positions) != 2 or any(
+        guard_positions[index] > apply_positions[index] for index in range(2)
+    ):
+        raise StagingError("WP-08 destructive-plan guard must run before every apply")
     print("WP08_STAGING_WORKFLOW=PASS phases=provision,deploy")
 
 

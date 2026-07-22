@@ -83,7 +83,6 @@ resource "volcenginecc_rdspostgresql_allow_list" "app" {
       bind_mode           = "AssociateEcsIp"
       security_group_id   = volcenginecc_vpc_security_group.app.security_group_id
       security_group_name = "${var.resource_prefix}-app"
-      ip_list             = []
     },
   ]
 }
@@ -250,6 +249,25 @@ resource "volcenginecc_ecs_instance" "app" {
   tags = local.common_tags
 
   lifecycle {
+    prevent_destroy = true
+
+    # CloudControl cannot read these creation-only/write-only ECS properties
+    # back after import. Ignoring only those properties keeps the imported
+    # instance stable while Terraform continues to manage its readable fields.
+    ignore_changes = [
+      eip_address.bandwidth_mbps,
+      eip_address.charge_type,
+      eip_address.isp,
+      eip_address.release_with_instance,
+      image.security_enhancement_strategy,
+      install_run_command_agent,
+      password,
+      system_volume.delete_with_instance,
+      system_volume.size,
+      system_volume.volume_type,
+      user_data,
+    ]
+
     precondition {
       condition     = var.approved_monthly_estimate_cny <= var.monthly_budget_cny
       error_message = "The verified calculator quote exceeds the authorized CNY 800 monthly budget."

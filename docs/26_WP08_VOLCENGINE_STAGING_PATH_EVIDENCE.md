@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-22
-状态：`AUTHORIZED_CANDIDATE_BOUND_APPLY_PENDING`
+状态：`PROVISION_FAILED_REMEDIATION_PENDING_REVIEW`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -76,3 +76,12 @@
 - 预算模型保守计入单 AZ TOS 20 GiB ¥3/月、EIP 公网出流量 100 GiB ¥80/月；RDS 备份当前 0 折，DNS 子区与 ACME TLS 按 ¥0 计，月预测为 ¥656.26，距上限余 ¥143.74；
 - 私有报价证据引用 `PEV-WP08-20260722-QUOTE_REFRESH`，不含凭据、账号 ID、资源 ID、endpoint 或 PII；
 - 机器合同、Terraform、deploy bundle、工作流确认词及三镜像 digest 已重新绑定新候选；staging workflow 在门禁前从 run `29888300206` 下载精确候选 artifact，不依赖本地忽略目录。首次创建的新 RDS CA 只能在实例启用 SSL 后下载，因此唯一 workflow 使用 `provision` → 写入新实例 CA → `deploy` 的两阶段输入；两阶段共享同一 state、候选、预算和授权边界，不构成第二条部署路径。物理资源和 deployment 仍为 `NOT_RUN`，须待该绑定变更进入受保护主线后才允许执行。
+
+## 2026-07-23 State 对账与破坏性计划修复
+
+- 资源/state 对账已将既有 ECS 精确导入远端 state；对账 workflow 随后删除，长期入口仍只有 `.github/workflows/staging.yml`。远端 state 当前 serial 为 13，既有 ECS 保持 deletion protection，未被删除；
+- IAM 已收敛为全局 CloudControl Create/Get/Update/Delete/GetTask 五项生命周期动作、华北2 RDS AllowList 八项、RDS SSL 两项和 EBS Describe 一项；DNS、ECS、RDS、VPC、TOS 服务权限继续限定 `journey-next-staging` 项目。`CloudControlFullAccess` 与 `TagFullAccess` 已删除，DNS 子区已转入该项目；
+- 唯一 provision run `29942799357` 在 apply 前生成 `3 add / 4 change / 1 destroy`。CloudControl import 无法回读 ECS 的 EIP、镜像安全增强、Cloud Assistant、系统盘、bootstrap password 与 user-data 等创建期/write-only 属性，provider 因而错误提出替换；ECS deletion protection 阻止删除。RDS AllowList 同时因 `AssociateEcsIp` 绑定仍显式发送空 `ip_list` 被平台拒绝。TOS 发生一次就地更新，SSL、DNS 和应用部署均未开始；该 run 没有重试；
+- 修复仅对官方 provider 标注为 write-only/创建期且实测不可回读的 ECS 属性使用精确 `ignore_changes`，同时增加 Terraform `prevent_destroy`；可回读的实例类型、区域、VPC/子网/安全组、项目、标签和 deletion protection 仍由 Terraform 管理。AllowList 的 `AssociateEcsIp` 绑定改为完全省略 `ip_list`；
+- 所有 apply 路径（主基础设施与关闭 SSH）现在都必须先生成 saved plan，再把 `terraform show -json` 直接管道交给 `wp08_plan_guard.py`。任一 action 含 `delete`，包括两种 replacement 顺序，立即 fail closed；plan 值不写日志、不提交也不进入 artifact；
+- 本节只代表代码修复与本地机器门禁通过，未授权或执行新的 provision。候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
