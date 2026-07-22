@@ -36,6 +36,17 @@ def infrastructure_files(tmp_path: Path) -> tuple[Path, Path]:
                 'length           = 30',
                 'override_special = "!@#%^&*_-+=?"',
                 '}',
+                'resource "volcenginecc_rdspostgresql_allow_list" "app" {',
+                'security_group_bind_infos = [{',
+                'bind_mode = "AssociateEcsIp"',
+                'security_group_id = "sg-reviewed"',
+                'security_group_name = "journey-next-staging-app"',
+                '}]',
+                'lifecycle {',
+                'ignore_changes = [security_group_bind_infos]',
+                '}',
+                '}',
+                'resource "volcenginecc_ecs_instance" "app" {',
                 'password                  = random_password.ecs_bootstrap.result',
                 'PasswordAuthentication no',
                 'KbdInteractiveAuthentication no',
@@ -54,7 +65,7 @@ def infrastructure_files(tmp_path: Path) -> tuple[Path, Path]:
                 'system_volume.volume_type',
                 'user_data',
                 ']',
-                'security_group_name = "journey-next-staging-app"',
+                '}',
             )
         )
     )
@@ -149,7 +160,7 @@ def test_infrastructure_uses_state_only_bootstrap_password(tmp_path: Path, monke
         staging.validate_infrastructure()
 
 
-def test_infrastructure_rejects_unreviewed_ignore_set_and_empty_allowlist_ip(
+def test_infrastructure_rejects_unreviewed_ignore_set_and_mutable_allowlist_binding(
     tmp_path: Path, monkeypatch
 ):
     versions, main = infrastructure_files(tmp_path)
@@ -161,7 +172,11 @@ def test_infrastructure_rejects_unreviewed_ignore_set_and_empty_allowlist_ip(
         staging.validate_infrastructure()
 
     main.write_text(source.replace("security_group_name", "ip_list = []\nsecurity_group_name", 1))
-    with pytest.raises(staging.StagingError, match="must omit an empty ip_list"):
+    with pytest.raises(staging.StagingError, match="must not configure ip_list"):
+        staging.validate_infrastructure()
+
+    main.write_text(source.replace("ignore_changes = [security_group_bind_infos]", ""))
+    with pytest.raises(staging.StagingError, match="must be immutable after creation"):
         staging.validate_infrastructure()
 
 
@@ -176,12 +191,14 @@ def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, mo
             "          - deploy",
             "WP08_PHASE: ${{ inputs.phase }}",
             'if [[ "$WP08_PHASE" == "deploy" ]]',
-            "if: always() && steps.infrastructure.outcome == 'success'",
+            "id: terraform_init",
+            "if: always() && inputs.phase == 'deploy' && steps.terraform_init.outcome == 'success'",
             "if: inputs.phase == 'deploy'",
             "if: inputs.phase == 'deploy'",
             "if: inputs.phase == 'deploy'",
             'terraform show -json "$plan_file" | python3 ../../scripts/wp08_plan_guard.py',
             'terraform apply -auto-approve "$plan_file"',
+            "-target=volcenginecc_vpc_security_group.app",
             'terraform show -json "$close_plan" | python3 ../../scripts/wp08_plan_guard.py',
             'terraform apply -auto-approve "$close_plan"',
         )
@@ -191,4 +208,8 @@ def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, mo
 
     workflow.write_text(source.replace("scripts/wp08_plan_guard.py", "scripts/missing.py", 1))
     with pytest.raises(staging.StagingError, match="every WP-08 apply path"):
+        staging.validate_workflow(workflow)
+
+    workflow.write_text(source.replace("-target=volcenginecc_vpc_security_group.app", ""))
+    with pytest.raises(staging.StagingError, match="target only the staging security group"):
         staging.validate_workflow(workflow)

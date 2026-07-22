@@ -87,6 +87,7 @@ jobs:
           make wp08-staging-apply-check
           echo "TF_VAR_approved_monthly_estimate_cny=$(jq -r .approved_monthly_estimate_cny config/wp08_staging.json)" >>"$GITHUB_ENV"
       - name: Initialize encrypted private TOS state
+        id: terraform_init
         working-directory: infra/staging
         run: |
           terraform init \
@@ -166,10 +167,13 @@ jobs:
           curl --fail --silent --show-error --retry 6 --retry-delay 5 \
             https://staging-vnext.muchenai.com/ops >/dev/null
       - name: Close SSH ingress
-        if: always() && steps.infrastructure.outcome == 'success'
+        if: always() && inputs.phase == 'deploy' && steps.terraform_init.outcome == 'success'
         working-directory: infra/staging
         run: |
           close_plan="$RUNNER_TEMP/wp08-close-ssh.tfplan"
-          terraform plan -out="$close_plan" -var="deploy_cidr=127.0.0.1/32"
+          terraform plan \
+            -target=volcenginecc_vpc_security_group.app \
+            -out="$close_plan" \
+            -var="deploy_cidr=127.0.0.1/32"
           terraform show -json "$close_plan" | python3 ../../scripts/wp08_plan_guard.py
           terraform apply -auto-approve "$close_plan"

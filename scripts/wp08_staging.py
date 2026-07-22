@@ -142,7 +142,12 @@ def validate_infrastructure() -> None:
         raise StagingError("ECS bootstrap password must have exactly one non-output consumer")
     if "key_pair_name" in main.lower():
         raise StagingError("staging ECS must not depend on an account-level KeyPair")
-    ignore_match = re.search(r"ignore_changes\s*=\s*\[(.*?)\]", main, re.DOTALL)
+    ecs_start = main.find('resource "volcenginecc_ecs_instance" "app"')
+    ecs_end = main.find('\nresource "', ecs_start + 1)
+    if ecs_start < 0:
+        raise StagingError("staging ECS resource is missing")
+    ecs = main[ecs_start : ecs_end if ecs_end >= 0 else None]
+    ignore_match = re.search(r"ignore_changes\s*=\s*\[(.*?)\]", ecs, re.DOTALL)
     if ignore_match is None:
         raise StagingError("staging ECS creation-only ignore list is missing")
     ignored = {
@@ -165,8 +170,19 @@ def validate_infrastructure() -> None:
     }
     if ignored != expected_ignored:
         raise StagingError("staging ECS creation-only ignore list differs from the reviewed set")
-    if re.search(r"\bip_list\s*=\s*\[\s*\]", main):
-        raise StagingError("AssociateEcsIp allowlist binding must omit an empty ip_list")
+    allowlist_start = main.find('resource "volcenginecc_rdspostgresql_allow_list" "app"')
+    allowlist_end = main.find('\nresource "', allowlist_start + 1)
+    if allowlist_start < 0 or allowlist_end < 0:
+        raise StagingError("staging RDS allowlist resource is missing")
+    allowlist = main[allowlist_start:allowlist_end]
+    if re.search(r"\bip_list\s*=", allowlist):
+        raise StagingError("AssociateEcsIp allowlist binding must not configure ip_list")
+    if not re.search(
+        r"ignore_changes\s*=\s*\[\s*security_group_bind_infos\s*\]", allowlist
+    ):
+        raise StagingError(
+            "AssociateEcsIp nested binding must be immutable after creation"
+        )
 
 
 def validate_candidate(data: dict[str, object]) -> None:
@@ -230,7 +246,8 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
         "- provision\n          - deploy",
         "WP08_PHASE: ${{ inputs.phase }}",
         'if [[ "$WP08_PHASE" == "deploy" ]]',
-        "if: always() && steps.infrastructure.outcome == 'success'",
+        "id: terraform_init",
+        "if: always() && inputs.phase == 'deploy' && steps.terraform_init.outcome == 'success'",
         "terraform show -json",
         "scripts/wp08_plan_guard.py",
         'terraform apply -auto-approve "$plan_file"',
@@ -243,6 +260,8 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
         raise StagingError("staging workflow deploy-only step count must be exactly 3")
     if workflow.count("scripts/wp08_plan_guard.py") != 2:
         raise StagingError("every WP-08 apply path must have one destructive-plan guard")
+    if workflow.count("-target=volcenginecc_vpc_security_group.app") != 1:
+        raise StagingError("WP-08 SSH cleanup must target only the staging security group")
     if "terraform apply -auto-approve -var=" in workflow:
         raise StagingError("WP-08 apply must consume a reviewed and guarded saved plan")
     guard_positions = [

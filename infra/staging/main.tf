@@ -85,6 +85,15 @@ resource "volcenginecc_rdspostgresql_allow_list" "app" {
       security_group_name = "${var.resource_prefix}-app"
     },
   ]
+
+  lifecycle {
+    # volcenginecc 0.0.57 models this value as SetNestedAttribute with
+    # computed children. Updating an existing AssociateEcsIp binding makes
+    # the provider serialize an unknown IpList as an empty list, which the
+    # RDS API rejects. The binding is creation-time configuration; manage the
+    # security group itself in Terraform but do not rewrite this nested set.
+    ignore_changes = [security_group_bind_infos]
+  }
 }
 
 resource "volcenginecc_rdspostgresql_instance" "staging" {

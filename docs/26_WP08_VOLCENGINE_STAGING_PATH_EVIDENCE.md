@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-22
-状态：`PROVISION_FAILED_REMEDIATION_PENDING_REVIEW`
+状态：`PROVISION_FAILED_SECOND_REMEDIATION_PENDING_REVIEW`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -85,3 +85,12 @@
 - 修复仅对官方 provider 标注为 write-only/创建期且实测不可回读的 ECS 属性使用精确 `ignore_changes`，同时增加 Terraform `prevent_destroy`；可回读的实例类型、区域、VPC/子网/安全组、项目、标签和 deletion protection 仍由 Terraform 管理。AllowList 的 `AssociateEcsIp` 绑定改为完全省略 `ip_list`；
 - 所有 apply 路径（主基础设施与关闭 SSH）现在都必须先生成 saved plan，再把 `terraform show -json` 直接管道交给 `wp08_plan_guard.py`。任一 action 含 `delete`，包括两种 replacement 顺序，立即 fail closed；plan 值不写日志、不提交也不进入 artifact；
 - 本节只代表代码修复与本地机器门禁通过，未授权或执行新的 provision。候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
+
+## 2026-07-23 第二次 Provision 与精确阻塞
+
+- 用户明确授权后仅执行一次 `phase=provision`：run `29945430858`，workflow HEAD `bc76d1d813b193c18f96a4da364732f7af2b0967`，候选仍为 `670661865f708a835997596ed5b74904809564a5`；没有自动重试；
+- saved plan 为 `2 add / 5 change / 0 destroy`，`WP08_TERRAFORM_PLAN_GUARD=PASS`。apply 完成 ECS 与 TOS 的原地收敛后，在两个并行资源处失败：RDS AllowList 把 computed `IpList` 作为空值发送并被 `InvalidAllowListIPList.InvalidIPList` 拒绝；DNS Record 因 CI 缺少 CloudControl 所需的全局只读 `dns:QueryRecord` 而被拒绝；
+- DNS 子区、`DNSFullAccess`、ECS、RDS、VPC、TOS 仍限定 `journey-next-staging` 项目。待授权的 IAM 增量必须只有全局 `dns:QueryRecord` 一项，不得扩大为全局 `DNSFullAccess`；
+- AllowList 修复把 `security_group_bind_infos` 明确设为创建期不可变嵌套集合，禁止配置 `ip_list`，并由机器检查锁定；安全组资源仍受 Terraform 管理。官方 provider 对 SetNestedAttribute 的已知限制决定了不能通过补齐空字段来更新该绑定；
+- deploy 失败清理同步收窄：只要 remote state 初始化成功，`always()` 清理即运行，并只 target staging 安全组；清理 plan 仍须通过无 destroy/replacement 门禁，避免失败路径继续修改其他资源；
+- 本轮未执行 migration、seed、应用容器、TLS 或 browser smoke。候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
