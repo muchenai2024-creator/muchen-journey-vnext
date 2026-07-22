@@ -113,7 +113,16 @@ jobs:
           ipaddress.IPv4Address(sys.argv[1])
           PY
           echo "WP08_RUNNER_CIDR=$runner_ip/32" >>"$GITHUB_ENV"
-          terraform plan -out=wp08.tfplan -var="deploy_cidr=$runner_ip/32"
+          plan_error="$RUNNER_TEMP/wp08-plan-error.log"
+          if ! terraform plan -out=wp08.tfplan -var="deploy_cidr=$runner_ip/32" \
+            2> >(tee "$plan_error" >&2); then
+            if grep -Fq "InvalidTimestamp: The Signature of the request is expired" "$plan_error"; then
+              echo "::warning::CloudControl plan request expired; retrying plan once with a fresh signature"
+              terraform plan -out=wp08.tfplan -var="deploy_cidr=$runner_ip/32"
+            else
+              exit 1
+            fi
+          fi
           terraform apply -auto-approve wp08.tfplan
           echo "public_ip=$(terraform output -raw staging_public_ip)" >>"$GITHUB_OUTPUT"
           echo "rds_host=$(terraform output -raw rds_private_host)" >>"$GITHUB_OUTPUT"
