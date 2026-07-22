@@ -27,6 +27,7 @@
 - TOS bucket 私有、版本化、默认 SSE-TOS AES-256；WP-08 只创建物理隔离资源，应用接入、presign 与扫描属于 WP-10。
 - Worker 以 `APP_ENV=staging` + `NOTIFICATION_ADAPTER=DISABLED` 运行并上报 heartbeat；notification outbox 不会被领取。`LOCAL_TEST` 在 staging 仍启动失败，真实飞书 adapter 属于 WP-11。
 - staging secret 的权威存储是 GitHub `staging` Environment；部署时经单次 SSH 加密通道落盘为 `0600`，不进入 Git、Actions artifact、Terraform CLI 参数或日志。Terraform 加密 TOS state 会保存 RDS account 的敏感属性，因此 state bucket 必须私有、版本化、仅 CI 子用户可读。
+- ECS 创建所需的 bootstrap password 由 Terraform `random_password` 一次生成，仅保存在上述私有、版本化、SSE 加密的 remote state，并且不声明 output、不进入 GitHub secret、Actions 日志或 cloud-init。实例用它满足创建 API 的必填凭据合同；cloud-init 写入 staging-only deploy 公钥后立即将 SSH 收敛为 key-only。密码遗失不恢复、不用于日常登录，实例替换时生成新的随机值。
 
 ## 3. 一次性主账号 Bootstrap
 
@@ -34,7 +35,7 @@ Bootstrap 必须由主账号 Owner 在火山引擎控制台完成，不能使用
 
 1. 创建资源项目 `journey-next-staging`；
 2. 创建私有、版本化、SSE 加密的 TOS state bucket，名称使用 `journey-next-staging-tfstate-<random>`；
-3. 创建无控制台登录能力的 IAM 子用户 `journey-next-staging-ci`；`CloudControlFullAccess` 必须为全局作用范围（CloudControl 控制面不接受项目作用域），VPC/ECS/EIP/RDS PostgreSQL/TOS/KMS/Tag 等底层服务权限仍只授权 `journey-next-staging` 项目及 state bucket 必需读写；不得授予旧项目或 IAM 管理权限；
+3. 创建无控制台登录能力的 IAM 子用户 `journey-next-staging-ci`；`CloudControlFullAccess` 必须为全局作用范围（CloudControl 控制面不接受项目作用域）；RDS PostgreSQL AllowList 因资源创建前没有可用项目属性，额外使用全局自定义策略 `journey-next-staging-rdspg-allowlist-cn-beijing`，正文只允许 Create/Associate/DescribeDetail/Upgrade/Delete/Disassociate/Describe/Modify 八项 AllowList 动作，并以 `volc:RequestedRegion=cn-beijing` 限定地域；`RDSPGFullAccess` 与 VPC/ECS/EIP/TOS/KMS/Tag 等底层服务权限仍只授权 `journey-next-staging` 项目及 state bucket 必需读写；不得授予旧项目或 IAM 管理权限；
 4. 创建一次 AK/SK，并直接写入 GitHub repo 的 `staging` Environment secrets `VOLCENGINE_ACCESS_KEY` / `VOLCENGINE_SECRET_KEY`；不得复制到聊天、shell history、文档或本地 `.env`；
 5. 创建 `staging-vnext.muchenai.com` 独立 DNS 子区，将控制台分配的 NS 记录委派到 `muchenai.com`；把子区 ID 写入 Environment secret `WP08_DNS_ZONE_ID`；
 6. 创建 staging-only Ed25519 deploy key；私钥/公钥分别写入 `WP08_DEPLOY_SSH_PRIVATE_KEY` / `WP08_DEPLOY_SSH_PUBLIC_KEY`。Terraform 通过 ECS cloud-init 把公钥写入实例，不创建账号级 ECS KeyPair，避免为 KeyPair 的创建后读取扩大 ECS 全局权限；

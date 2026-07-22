@@ -36,6 +36,9 @@
 - PR #9 合并后，run `29931436619` 已越过 KeyPair 与安全组 IAM 鉴权；长耗时 refresh 最终仅在 TOS encryption `GetResource` 处返回 `InvalidTimestamp`。官方 provider 0.0.59 未包含该路径修复，因此 workflow 只为该精确错误增加一次只读 plan 重签重试；apply 与其他错误不重试。
 - PR #10 合并后，run `29933251955` 的 plan 与 TOS refresh 正常完成，apply 在安全组出站规则描述的分号处以 `InvalidDescription.Malformed` 停止；修复仅把未支持的分号替换为允许的逗号。
 - PR #11 合并后，run `29933635861` 确认描述已通过，但平台自动创建的默认全放行出站规则与 Terraform 重复声明冲突；根据火山引擎 VPC 官方行为，删除重复 IaC 出站项，不改变实际出站策略。
+- PR #12 合并后，run `29934422323` 已创建并纳管 staging 安全组，随后在两个独立边界停止：RDS PostgreSQL AllowList 没有项目属性，因此项目限定的 `RDSPGFullAccess` 无法授权其创建；ECS 创建 API 同时缺少 Password 和 KeyPair。该 run 未创建 ECS、RDS，未执行 migration、seed 或应用部署，不得原样重试。
+- 用户明确授权后，新建全局自定义策略 `journey-next-staging-rdspg-allowlist-cn-beijing`：仅含 RDS PostgreSQL AllowList 的 Create/Associate/DescribeDetail/Upgrade/Delete/Disassociate/Describe/Modify 八项动作，并以 `volc:RequestedRegion=cn-beijing` 限定地域。授权后反向核验其项目限制为“无”，原 `RDSPGFullAccess` 仍限定 `journey-next-staging`，未扩大其他 RDS 权限。
+- ECS 不恢复账号级 KeyPair，也不扩大 `ECSFullAccess`。Terraform 改为一次生成 30 位 bootstrap password，仅保存在私有、版本化、SSE 加密的 TOS remote state且不输出；cloud-init 写入 deploy 公钥后关闭 SSH password、keyboard-interactive 和 challenge-response 登录，root 仅允许公钥登录。
 
 ## 2026-07-22 预算门禁
 

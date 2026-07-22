@@ -18,6 +18,8 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "config" / "wp08_staging.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "staging.yml"
+INFRA_MAIN = ROOT / "infra" / "staging" / "main.tf"
+INFRA_VERSIONS = ROOT / "infra" / "staging" / "versions.tf"
 PRIVATE_EVIDENCE = ROOT / "evidence" / "private" / "wp08"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -115,6 +117,31 @@ def validate_files() -> None:
         raise StagingError("deploy/staging/deploy.sh must be mode 0755")
 
 
+def validate_infrastructure() -> None:
+    versions = INFRA_VERSIONS.read_text()
+    main = INFRA_MAIN.read_text()
+    required_versions = ('source  = "hashicorp/random"', 'version = "3.7.2"')
+    for marker in required_versions:
+        if marker not in versions:
+            raise StagingError(f"staging providers are missing bootstrap marker: {marker}")
+    required_main = (
+        'resource "random_password" "ecs_bootstrap"',
+        'length           = 30',
+        'override_special = "!@#%^&*_-+=?"',
+        'password                  = random_password.ecs_bootstrap.result',
+        'PasswordAuthentication no',
+        'KbdInteractiveAuthentication no',
+        'PermitRootLogin prohibit-password',
+    )
+    for marker in required_main:
+        if marker not in main:
+            raise StagingError(f"staging infrastructure is missing bootstrap marker: {marker}")
+    if main.count("random_password.ecs_bootstrap.result") != 1:
+        raise StagingError("ECS bootstrap password must have exactly one non-output consumer")
+    if "key_pair_name" in main.lower():
+        raise StagingError("staging ECS must not depend on an account-level KeyPair")
+
+
 def validate_candidate(data: dict[str, object]) -> None:
     manifest_path = ROOT / "artifacts" / "wp07-candidate" / "release-manifest.json"
     if not manifest_path.is_file():
@@ -158,6 +185,7 @@ def validate_cost(data: dict[str, object], *, require_quote: bool) -> None:
 def check(phase: str) -> None:
     data = load_contract()
     validate_files()
+    validate_infrastructure()
     validate_candidate(data)
     validate_cost(data, require_quote=phase == "apply")
     print(
@@ -169,6 +197,7 @@ def check(phase: str) -> None:
 
 
 def validate_workflow(path: Path = WORKFLOW) -> None:
+    validate_infrastructure()
     workflow = path.read_text()
     required = (
         "- provision\n          - deploy",

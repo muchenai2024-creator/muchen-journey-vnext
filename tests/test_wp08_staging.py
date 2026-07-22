@@ -100,3 +100,32 @@ def test_approved_quote_matches_forecast_and_budget(tmp_path: Path):
     path.write_text(json.dumps(payload))
     with pytest.raises(staging.StagingError, match="forecast differ"):
         staging.load_contract(path)
+
+
+def test_infrastructure_uses_state_only_bootstrap_password(tmp_path: Path, monkeypatch):
+    versions = tmp_path / "versions.tf"
+    versions.write_text(
+        'source  = "hashicorp/random"\nversion = "3.7.2"\n'
+    )
+    main = tmp_path / "main.tf"
+    main.write_text(
+        '\n'.join(
+            (
+                'resource "random_password" "ecs_bootstrap" {',
+                'length           = 30',
+                'override_special = "!@#%^&*_-+=?"',
+                '}',
+                'password                  = random_password.ecs_bootstrap.result',
+                'PasswordAuthentication no',
+                'KbdInteractiveAuthentication no',
+                'PermitRootLogin prohibit-password',
+            )
+        )
+    )
+    monkeypatch.setattr(staging, "INFRA_VERSIONS", versions)
+    monkeypatch.setattr(staging, "INFRA_MAIN", main)
+    staging.validate_infrastructure()
+
+    main.write_text(main.read_text().replace("PasswordAuthentication no", ""))
+    with pytest.raises(staging.StagingError, match="bootstrap marker"):
+        staging.validate_infrastructure()

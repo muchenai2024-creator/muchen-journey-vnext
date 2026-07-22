@@ -7,6 +7,16 @@ locals {
   ]
 }
 
+resource "random_password" "ecs_bootstrap" {
+  length           = 30
+  min_lower        = 1
+  min_numeric      = 1
+  min_special      = 1
+  min_upper        = 1
+  special          = true
+  override_special = "!@#%^&*_-+=?"
+}
+
 resource "volcenginecc_vpc_vpc" "staging" {
   vpc_name     = "${var.resource_prefix}-vpc"
   cidr_block   = "10.88.0.0/16"
@@ -30,34 +40,34 @@ resource "volcenginecc_vpc_security_group" "app" {
   description         = "journey next staging web ingress and ephemeral deploy access"
   ingress_permissions = [
     {
-      direction       = "ingress"
-      policy          = "accept"
-      protocol        = "tcp"
-      port_start      = 80
-      port_end        = 80
-      priority        = 10
-      cidr_ip         = "0.0.0.0/0"
-      description     = "ACME redirect only"
+      direction   = "ingress"
+      policy      = "accept"
+      protocol    = "tcp"
+      port_start  = 80
+      port_end    = 80
+      priority    = 10
+      cidr_ip     = "0.0.0.0/0"
+      description = "ACME redirect only"
     },
     {
-      direction       = "ingress"
-      policy          = "accept"
-      protocol        = "tcp"
-      port_start      = 443
-      port_end        = 443
-      priority        = 10
-      cidr_ip         = "0.0.0.0/0"
-      description     = "staging HTTPS"
+      direction   = "ingress"
+      policy      = "accept"
+      protocol    = "tcp"
+      port_start  = 443
+      port_end    = 443
+      priority    = 10
+      cidr_ip     = "0.0.0.0/0"
+      description = "staging HTTPS"
     },
     {
-      direction       = "ingress"
-      policy          = "accept"
-      protocol        = "tcp"
-      port_start      = 22
-      port_end        = 22
-      priority        = 5
-      cidr_ip         = var.deploy_cidr
-      description     = "ephemeral GitHub runner only"
+      direction   = "ingress"
+      policy      = "accept"
+      protocol    = "tcp"
+      port_start  = 22
+      port_end    = 22
+      priority    = 5
+      cidr_ip     = var.deploy_cidr
+      description = "ephemeral GitHub runner only"
     },
   ]
   tags = local.common_tags
@@ -176,6 +186,7 @@ resource "volcenginecc_ecs_instance" "app" {
   install_run_command_agent = true
   stopped_mode              = "StopCharging"
   spot_strategy             = "NoSpot"
+  password                  = random_password.ecs_bootstrap.result
   image = {
     image_id                      = var.ecs_image_id
     security_enhancement_strategy = "Active"
@@ -214,6 +225,21 @@ resource "volcenginecc_ecs_instance" "app" {
     ${var.ecs_ssh_public_key}
     WP08_DEPLOY_PUBLIC_KEY
     chmod 0600 /root/.ssh/authorized_keys
+    install -d -m 0755 -o root -g root /etc/ssh/sshd_config.d
+    cat > /etc/ssh/sshd_config.d/99-journey-next-key-only.conf <<'WP08_SSH_HARDENING'
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    ChallengeResponseAuthentication no
+    PermitRootLogin prohibit-password
+    WP08_SSH_HARDENING
+    if [[ -x /usr/sbin/sshd ]]; then
+      /usr/sbin/sshd -t
+    fi
+    if systemctl is-active --quiet sshd; then
+      systemctl reload sshd
+    elif systemctl is-active --quiet ssh; then
+      systemctl reload ssh
+    fi
     systemctl enable --now docker
     install -d -m 0750 -o root -g root /srv/journey-next-staging/releases
     install -d -m 0700 -o root -g root /srv/journey-next-staging/secrets
