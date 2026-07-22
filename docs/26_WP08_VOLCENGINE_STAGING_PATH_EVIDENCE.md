@@ -35,6 +35,7 @@
 - PR #8 合并后，run `29931062181` 已确认 KeyPair 全局读取不再出现；安全组创建仍因规则显式传入空 `prefix_list_id` 而把空 PrefixList TRN 纳入 `vpc:AuthorizeSecurityGroupIngress` 鉴权并停止。修复只删除未使用的空来源选择器，不扩大 `VPCFullAccess` 项目范围。
 - PR #9 合并后，run `29931436619` 已越过 KeyPair 与安全组 IAM 鉴权；长耗时 refresh 最终仅在 TOS encryption `GetResource` 处返回 `InvalidTimestamp`。官方 provider 0.0.59 未包含该路径修复，因此 workflow 只为该精确错误增加一次只读 plan 重签重试；apply 与其他错误不重试。
 - PR #10 合并后，run `29933251955` 的 plan 与 TOS refresh 正常完成，apply 在安全组出站规则描述的分号处以 `InvalidDescription.Malformed` 停止；修复仅把未支持的分号替换为允许的逗号。
+- PR #11 合并后，run `29933635861` 确认描述已通过，但平台自动创建的默认全放行出站规则与 Terraform 重复声明冲突；根据火山引擎 VPC 官方行为，删除重复 IaC 出站项，不改变实际出站策略。
 
 ## 2026-07-22 预算门禁
 
