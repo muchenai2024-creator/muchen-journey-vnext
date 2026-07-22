@@ -1,6 +1,6 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`STOPPED_AFTER_PROVISION_FAILURE`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。run `29945430858` 已失败且未重试；新的 provision 必须等待修复进入受保护主线、最小 DNS 读取权限生效并获得新一轮明确授权。
+状态：`PROVISION_REMEDIATION_WAITING_IAM_CONFIRMATION`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。run `29945430858` 已失败且未重试；AllowList/DNS 代码修复已由 PR #17 合并，主线 run `29947491293` 已通过。新的 provision 只允许在全局只读 `dns:QueryRecord` 单项权限获得明确授权、创建并反向核验后执行一次。
 
 ## 1. 已锁定授权
 
