@@ -69,7 +69,7 @@ resource "volcenginecc_vpc_security_group" "app" {
       port_end        = -1
       priority        = 100
       cidr_ip         = "0.0.0.0/0"
-      description     = "bootstrap outbound; host denylist and isolation scan remain mandatory"
+      description     = "bootstrap outbound, host denylist and isolation scan remain mandatory"
     },
   ]
   tags = local.common_tags
