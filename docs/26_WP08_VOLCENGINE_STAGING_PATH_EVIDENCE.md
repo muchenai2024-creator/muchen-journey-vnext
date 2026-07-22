@@ -1,13 +1,13 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-22
-状态：`BUDGET_REAUTHORIZED_PATCHED_CANDIDATE_PENDING`
-候选：`ff07ce47d20f3f6eb09d633b09292628fbb58e2a`
+状态：`AUTHORIZED_CANDIDATE_BOUND_APPLY_PENDING`
+候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
 ## 已关闭
 
-- 用户明确锁定火山引擎、华北2（北京）/`cn-beijing`、按量计费、¥500/月和上述完整候选；
+- 用户明确锁定火山引擎、华北2（北京）/`cn-beijing`、按量计费、¥800/月和上述完整候选；
 - 独立资源命名、子域、VPC/SG/ECS/RDS/TOS、migration/runtime role、GitHub Environment secret、remote state、CI-only deploy 和回滚边界已形成仓库唯一受审路径；
 - Terraform 使用官方推荐的 `volcengine/volcenginecc` 0.0.57，而非已停止维护的旧 provider；
 - `wp08_staging.py` 将 provider/region/budget/candidate/origin 和同日报价设为 fail-closed 合同；
@@ -18,7 +18,7 @@
 ## 当前未发生
 
 - 火山引擎控制台已登录并只执行只读报价核验；未创建 IAM、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；
-- 同日官方价格计算器总额仍未写入，`approved_monthly_estimate_cny=null`，因此 apply 门禁按设计失败；
+- 同日总报价已写入机器合同，但新的候选绑定变更仍须通过 PR 与受保护主线后才能 dispatch；
 - GitHub `staging` Environment 的火山引擎身份与 vNext secrets 尚未配置；
 - 没有运行 migration、seed、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；
 - candidate manifest 的 deployment 仍须保持 `NOT_RUN`。
@@ -51,4 +51,13 @@
 - `make ci-fast` 与 `make ci-main`：96 tests passed，OpenAPI、隔离、gitleaks、迁移、HTTP 权限负向和发布 NO_GO 合同全部通过；
 - `make wp08-staging-readiness`：PASS，预算合同已为 ¥800；`make wp08-staging-apply-check` 按设计以“重授权后须刷新同日总报价”失败，不构成部署失败。
 
-远端 required check 证据：PR #5 在包含依赖修复的提交 `43973cbcf9953b893cdee58ec1d5bcf9f70a5155` 上运行 [GitHub Actions 29888061258](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29888061258)，`WP-07 / quick` 于 1m57s 内通过。main 候选打包、GHCR digest 与 physical staging 仍为 `NOT_RUN`。
+远端 required check 证据：PR #5 在包含依赖修复的提交 `43973cbcf9953b893cdee58ec1d5bcf9f70a5155` 上运行 [GitHub Actions 29888061258](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29888061258)，`WP-07 / quick` 于 1m57s 内通过。
+
+## 2026-07-22 新候选授权与同日报价刷新
+
+- PR #5 已合并到受保护主线，候选完整 SHA 为 `670661865f708a835997596ed5b74904809564a5`；[Mainline Candidate Gate 29888300206](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29888300206) 于 4m23s 内通过，三镜像 registry digest 均为 `VERIFIED`；
+- 用户在当前对话明确授权该候选在火山引擎华北2（北京）、按量计费、月上限 ¥800 范围内创建独立 staging 资源并部署；
+- RDS 控制台同日刷新：PostgreSQL 17、高可用 1C2G 主备、20 GiB、按量计费为 ¥0.55/小时，即按 720 小时估算 ¥396/月；ECS 既有同日报价为 ¥177.26/月，固定基线 ¥573.26/月；
+- 预算模型保守计入单 AZ TOS 20 GiB ¥3/月、EIP 公网出流量 100 GiB ¥80/月；RDS 备份当前 0 折，DNS 子区与 ACME TLS 按 ¥0 计，月预测为 ¥656.26，距上限余 ¥143.74；
+- 私有报价证据引用 `PEV-WP08-20260722-QUOTE_REFRESH`，不含凭据、账号 ID、资源 ID、endpoint 或 PII；
+- 机器合同、Terraform、deploy bundle、工作流确认词及三镜像 digest 已重新绑定新候选；staging workflow 在门禁前从 run `29888300206` 下载精确候选 artifact，不依赖本地忽略目录。物理资源和 deployment 仍为 `NOT_RUN`，须待该绑定变更进入受保护主线后才允许执行唯一 staging workflow。

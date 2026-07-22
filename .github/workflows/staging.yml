@@ -8,11 +8,12 @@ on:
         required: true
         type: string
       confirmation:
-        description: Type DEPLOY_FF07_TO_VOLCENGINE_STAGING
+        description: Type DEPLOY_670661_TO_VOLCENGINE_STAGING
         required: true
         type: string
 
 permissions:
+  actions: read
   contents: read
   packages: read
 
@@ -24,8 +25,8 @@ jobs:
   deploy:
     name: WP-08 / physical staging
     if: >-
-      inputs.candidate == 'ff07ce47d20f3f6eb09d633b09292628fbb58e2a' &&
-      inputs.confirmation == 'DEPLOY_FF07_TO_VOLCENGINE_STAGING'
+      inputs.candidate == '670661865f708a835997596ed5b74904809564a5' &&
+      inputs.confirmation == 'DEPLOY_670661_TO_VOLCENGINE_STAGING'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: staging
@@ -64,6 +65,13 @@ jobs:
         with:
           terraform_version: 1.15.8
           terraform_wrapper: false
+      - name: Download exact verified candidate manifest
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: wp07-candidate-670661865f708a835997596ed5b74904809564a5
+          path: artifacts/wp07-candidate
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 29888300206
       - name: Verify immutable WP-08 contract
         run: |
           test "$GITHUB_REF" = refs/heads/main

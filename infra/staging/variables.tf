@@ -41,11 +41,11 @@ variable "resource_prefix" {
 
 variable "monthly_budget_cny" {
   type    = number
-  default = 500
+  default = 800
 
   validation {
-    condition     = var.monthly_budget_cny == 500
-    error_message = "WP-08 has an exact monthly ceiling of CNY 500."
+    condition     = var.monthly_budget_cny == 800
+    error_message = "WP-08 has an exact monthly ceiling of CNY 800."
   }
 }
 
@@ -54,14 +54,14 @@ variable "approved_monthly_estimate_cny" {
   type        = number
 
   validation {
-    condition     = var.approved_monthly_estimate_cny > 0 && var.approved_monthly_estimate_cny <= 500
-    error_message = "The verified monthly estimate must be positive and no more than CNY 500."
+    condition     = var.approved_monthly_estimate_cny > 0 && var.approved_monthly_estimate_cny <= 800
+    error_message = "The verified monthly estimate must be positive and no more than CNY 800."
   }
 }
 
 variable "candidate_commit" {
   type    = string
-  default = "ff07ce47d20f3f6eb09d633b09292628fbb58e2a"
+  default = "670661865f708a835997596ed5b74904809564a5"
 
   validation {
     condition     = can(regex("^[0-9a-f]{40}$", var.candidate_commit))

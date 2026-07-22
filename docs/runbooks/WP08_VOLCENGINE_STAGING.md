@@ -1,19 +1,19 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`BUDGET_REAUTHORIZED_PATCHED_CANDIDATE_PENDING`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。
+状态：`AUTHORIZED_CANDIDATE_BOUND_APPLY_PENDING`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。
 
 ## 1. 已锁定授权
 
 - Provider：火山引擎；Region：华北2（北京），ID=`cn-beijing`；
 - 计费：全部按量计费（`PostPaid`）；月度硬上限：`¥800`；
-- 已停止的旧候选：`ff07ce47d20f3f6eb09d633b09292628fbb58e2a`；实际部署候选须包含 Next.js 16.2.11 / sharp 0.35.3 修复并重新锁定完整 SHA；
+- 实际部署候选：`670661865f708a835997596ed5b74904809564a5`；包含 Next.js 16.2.11 / sharp 0.35.3 修复；
 - 入口：`https://staging-vnext.muchenai.com`；
 - 资源：独立 IAM 项目/CI 子用户、VPC、子网、安全组、ECS、RDS PostgreSQL、TOS、委派 DNS 子区与 TLS；
 - Owner：Liu Mowen。上述授权不包含 production、旧系统变更、真实飞书消息、真人 UAT 或将月预算扩大到 ¥800 以上。
 
 `config/wp08_staging.json` 是机器合同。官方价格计算器同日总额未写入 `approved_monthly_estimate_cny` 时，`make wp08-staging-apply-check` 必须失败；合计高于 ¥800 时同样失败。
 
-2026-07-22 的首次官方报价证明 ¥500/月不足：ECS 约 ¥177.26/月，最小 RDS PostgreSQL 高可用主备约 ¥540/月，两项小计 ¥717.26/月且尚未包含 TOS、备份和公网流量；该次尝试已停止且未创建资源。用户随后将上限提高为 ¥800 并保留托管 RDS。新尝试须先完成 Next.js/sharp 安全修复的新候选和同日总报价刷新；两者完成前不得执行本节以下 bootstrap。
+2026-07-22 的首次 ¥500 尝试已停止且未创建资源。用户随后将上限提高为 ¥800 并保留托管 RDS。新候选与同日报价均已关闭：PostgreSQL 17 高可用 1C2G 主备 20 GiB ¥396/月、ECS ¥177.26/月、TOS 20 GiB 保守 ¥3/月、EIP 出流量 100 GiB ¥80/月、RDS 备份 ¥0、DNS/ACME TLS ¥0，合计预测 ¥656.26/月，预算余量 ¥143.74。
 
 ## 2. 资源边界
 
@@ -56,7 +56,7 @@ make wp08-staging-readiness
 make wp08-staging-apply-check
 ```
 
-然后在受保护 `main` 上手工触发 `.github/workflows/staging.yml`，candidate 输入完整 SHA，confirmation 输入 `DEPLOY_FF07_TO_VOLCENGINE_STAGING`。这条 workflow 是唯一写入口；本地个人机器不执行 `terraform apply` 或直连部署。
+然后在受保护 `main` 上手工触发 `.github/workflows/staging.yml`，candidate 输入完整 SHA，confirmation 输入 `DEPLOY_670661_TO_VOLCENGINE_STAGING`。这条 workflow 是唯一写入口；本地个人机器不执行 `terraform apply` 或直连部署。
 
 ## 5. 部署顺序与证据
 
