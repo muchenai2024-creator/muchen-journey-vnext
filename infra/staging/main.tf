@@ -60,18 +60,6 @@ resource "volcenginecc_vpc_security_group" "app" {
       description     = "ephemeral GitHub runner only"
     },
   ]
-  egress_permissions = [
-    {
-      direction       = "egress"
-      policy          = "accept"
-      protocol        = "all"
-      port_start      = -1
-      port_end        = -1
-      priority        = 100
-      cidr_ip         = "0.0.0.0/0"
-      description     = "bootstrap outbound, host denylist and isolation scan remain mandatory"
-    },
-  ]
   tags = local.common_tags
 }
 
