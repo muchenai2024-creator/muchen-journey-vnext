@@ -252,7 +252,7 @@ resource "volcenginecc_ecs_instance" "app" {
   lifecycle {
     precondition {
       condition     = var.approved_monthly_estimate_cny <= var.monthly_budget_cny
-      error_message = "The verified calculator quote exceeds the authorized CNY 500 monthly budget."
+      error_message = "The verified calculator quote exceeds the authorized CNY 800 monthly budget."
     }
   }
 }

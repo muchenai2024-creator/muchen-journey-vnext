@@ -35,6 +35,10 @@ def test_prepare_writes_private_independent_environment_files(
     assert "NOTIFICATION_ADAPTER=DISABLED" in (output / "secrets/worker.env").read_text()
     assert "ALLOW_FIXTURE_IDENTITY=false" in (output / "secrets/api.env").read_text()
     assert "Migration-Password" not in (output / "secrets/api.env").read_text()
+    deployment = (output / ".deployment.env").read_text()
+    assert f"CANDIDATE_COMMIT={prepare.CANDIDATE}" in deployment
+    for image in prepare.IMAGES.values():
+        assert image in deployment
 
 
 def test_prepare_rejects_reused_secret(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

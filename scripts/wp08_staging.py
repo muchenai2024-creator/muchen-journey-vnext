@@ -63,9 +63,13 @@ def load_contract(path: Path = CONTRACT) -> dict[str, object]:
         if status not in {
             "OVER_BUDGET_NO_DEPLOY",
             "BASELINE_WITHIN_BUDGET_QUOTE_REFRESH_REQUIRED",
+            "WITHIN_BUDGET_APPROVED",
         }:
             raise StagingError("latest cost evidence has an unsupported status")
-        subtotal = latest_cost.get("subtotal_before_tos_backup_and_traffic_cny")
+        subtotal = latest_cost.get(
+            "subtotal_before_tos_and_traffic_cny",
+            latest_cost.get("subtotal_before_tos_backup_and_traffic_cny"),
+        )
         if isinstance(subtotal, bool) or not isinstance(subtotal, (int, float)):
             raise StagingError("latest cost subtotal must be numeric")
         if status == "OVER_BUDGET_NO_DEPLOY":
@@ -73,11 +77,19 @@ def load_contract(path: Path = CONTRACT) -> dict[str, object]:
                 raise StagingError("over-budget evidence must exceed the authorized ceiling")
             if data["approved_monthly_estimate_cny"] is not None:
                 raise StagingError("an over-budget quote cannot be approved for apply")
-        else:
+        elif status == "BASELINE_WITHIN_BUDGET_QUOTE_REFRESH_REQUIRED":
             if subtotal > data["monthly_budget_cny"]:
                 raise StagingError("within-budget baseline exceeds the authorized ceiling")
             if data["approved_monthly_estimate_cny"] is not None:
                 raise StagingError("quote-refresh baseline cannot be approved for apply")
+        else:
+            forecast = latest_cost.get("approved_monthly_forecast_cny")
+            if isinstance(forecast, bool) or not isinstance(forecast, (int, float)):
+                raise StagingError("approved monthly forecast must be numeric")
+            if forecast < subtotal or forecast > data["monthly_budget_cny"]:
+                raise StagingError("approved monthly forecast is outside the budget contract")
+            if data["approved_monthly_estimate_cny"] != forecast:
+                raise StagingError("approved estimate and latest cost forecast differ")
     return data
 
 

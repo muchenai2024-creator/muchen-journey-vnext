@@ -22,9 +22,9 @@ for name in API_IMAGE WEB_IMAGE WORKER_IMAGE; do
   value=${!name:-}
   [[ "$value" == ghcr.io/muchenai2024-creator/muchen-journey-vnext-*"@sha256:"* ]] || fail "$name is not an immutable vNext GHCR digest"
 done
-[[ "${API_IMAGE#*@}" == "sha256:6f9c8badc778d1344b920c8173dd3771c69642eec7d9747a2e4218ca987247c0" ]] || fail "API digest differs from candidate manifest"
-[[ "${WEB_IMAGE#*@}" == "sha256:239b27949a9ef2137d1383bc459169e2794dbbe0d88fbfd4953d16f446e0917a" ]] || fail "Web digest differs from candidate manifest"
-[[ "${WORKER_IMAGE#*@}" == "sha256:fd679e07ea7a0ab5d5feb5c3bacb6c41d7c1e82db621cf76fe8b90c3eadade27" ]] || fail "Worker digest differs from candidate manifest"
+[[ "${API_IMAGE#*@}" == "sha256:6d56dfdf31bfd26a6ca9f4f3547ab2df14899898f31f64c4428ea9d55bb0a3e4" ]] || fail "API digest differs from candidate manifest"
+[[ "${WEB_IMAGE#*@}" == "sha256:14597932f27bf106791c00a50e4126ab4981cad50ae468b68437e9fa361fdc03" ]] || fail "Web digest differs from candidate manifest"
+[[ "${WORKER_IMAGE#*@}" == "sha256:12666e53519e5dab0ac96593d49dddcefff4054468164424f3600abf9fff0ad4" ]] || fail "Worker digest differs from candidate manifest"
 
 command -v docker >/dev/null || fail "docker is missing"
 docker compose version >/dev/null || fail "docker compose plugin is missing"

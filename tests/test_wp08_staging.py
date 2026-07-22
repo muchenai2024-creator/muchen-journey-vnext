@@ -82,3 +82,21 @@ def test_reauthorized_baseline_requires_refreshed_total_quote(tmp_path: Path):
     path.write_text(json.dumps(payload))
     with pytest.raises(staging.StagingError, match="cannot be approved"):
         staging.load_contract(path)
+
+
+def test_approved_quote_matches_forecast_and_budget(tmp_path: Path):
+    path = contract(tmp_path, estimate=656.26)
+    payload = json.loads(path.read_text())
+    payload["latest_cost_evidence"] = {
+        "status": "WITHIN_BUDGET_APPROVED",
+        "subtotal_before_tos_and_traffic_cny": 573.26,
+        "approved_monthly_forecast_cny": 656.26,
+    }
+    path.write_text(json.dumps(payload))
+    data = staging.load_contract(path)
+    staging.validate_cost(data, require_quote=True)
+
+    payload["approved_monthly_estimate_cny"] = 656.25
+    path.write_text(json.dumps(payload))
+    with pytest.raises(staging.StagingError, match="forecast differ"):
+        staging.load_contract(path)
