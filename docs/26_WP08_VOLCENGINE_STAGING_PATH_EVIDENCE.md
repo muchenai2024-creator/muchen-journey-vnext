@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
-日期：2026-07-22
-状态：`PROVISION_FAILED_SECOND_REMEDIATION_PENDING_REVIEW`
+日期：2026-07-23
+状态：`PROVISION_REMEDIATION_WAITING_IAM_CONFIRMATION`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -15,7 +15,14 @@
 - 候选三镜像部署引用固定为 WP-07 已核验 GHCR digest；Caddy 镜像固定 digest；
 - deploy bundle 的 secret 文件为 `0600`，私有目录为 `0700`，旧域名/旧部署标识和 `LOCAL_TEST` 被拒绝。
 
-## 当前未发生
+## 当前事实（2026-07-23）
+
+- 独立 staging 项目中的部分 IAM、VPC、安全组、ECS、RDS/TOS 与 DNS 资源已由唯一受审 workflow 创建或纳管；资源和 remote state 的逐项事实以私有证据为准，公开仓库不记录账号、资源 ID、endpoint、IP、凭据或人员信息；
+- 第二次 provision run `29945430858` 在无 destroy/replacement 的门禁通过后停止；RDS AllowList 与 DNS 查询权限的代码侧修复已由 PR #17 合并到主线 `1791ea6d89a290cf4ff41e5c4a9e27fb64d7213c`，required check 通过；
+- 全局只读 `dns:QueryRecord` 单项策略已准备，但尚未获得明确提交授权、尚未创建或附加；项目限定的 DNS/ECS/RDS/VPC/TOS 权限不因此扩大；
+- 尚未执行 migration、seed、应用容器部署、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；候选 deployment 仍为 `NOT_RUN`，WP-08 未关闭，整体发布为 `NO_GO`。
+
+## 2026-07-22 路径设计时未发生（历史快照）
 
 - 火山引擎控制台已登录并只执行只读报价核验；未创建 IAM、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；
 - 同日总报价已写入机器合同，但新的候选绑定变更仍须通过 PR 与受保护主线后才能 dispatch；
