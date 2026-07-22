@@ -76,5 +76,6 @@ Workflow 顺序固定：provision 阶段执行合同检查 → TOS remote state 
 
 - 应用失败：`deploy.sh` 尝试重新启动 `PREVIOUS_RELEASE`；不回滚已接受业务事实，不自动 downgrade migration。
 - Terraform apply 失败：保留 state 和精确 plan/error，先关闭临时 SSH `/32`；不得无审查重复 apply。
+- CloudControl 长耗时 state refresh 若仅以精确 `InvalidTimestamp: The Signature of the request is expired` 失败，workflow 只允许重新签名并重跑一次只读 `terraform plan`；`apply` 不自动重试，其他错误继续 fail closed。
 - 预算预测或实际成本超过 ¥800、候选/digest 不一致、CA/域名/ACL 不合格、旧资源引用出现：立即 `STOPPED / NO DEPLOY`。
 - 首次部署无 previous release；失败时停止新容器，保留 RDS/TOS 供诊断。删除付费资源属于单独破坏性操作，需用户再次明确授权并先保留必要证据。
