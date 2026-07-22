@@ -1,6 +1,6 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`AUTHORIZED_CANDIDATE_BOUND_APPLY_PENDING`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。
+状态：`STOPPED_AFTER_PROVISION_FAILURE`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。run `29942799357` 已失败且未重试；新的 provision 必须等待修复进入受保护主线并获得新一轮明确授权。
 
 ## 1. 已锁定授权
 
@@ -23,7 +23,7 @@
 - 每条安全组规则只声明实际使用的来源选择器；CIDR 规则不得同时传入空 `prefix_list_id` 或 `source_group_id`，否则 CloudControl 会把空 PrefixList TRN 纳入 IAM 鉴权并越出项目边界。
 - 安全组及规则描述只使用火山引擎允许的中英文、数字、空格、逗号、句号、下划线、等号和连字符；禁止分号等未支持标点。
 - 自定义安全组创建时平台会自动加入允许 `0.0.0.0/0`、ALL 协议/端口的默认出站规则；Terraform 不得重复声明同一规则，否则 CloudControl 以 `InvalidSecurityRule.Conflict` 拒绝。出站收敛继续由主机 denylist 与隔离复验负责。
-- RDS 只绑定 staging ECS 安全组，无公网地址；`journey_next_migrator` 拥有 schema，`journey_next_runtime` 禁止 DDL，只获 DML/sequence 权限；强制 TLS。
+- RDS 只绑定 staging ECS 安全组，无公网地址；`AssociateEcsIp` 绑定不得显式发送空 `ip_list`；`journey_next_migrator` 拥有 schema，`journey_next_runtime` 禁止 DDL，只获 DML/sequence 权限；强制 TLS。
 - TOS bucket 私有、版本化、默认 SSE-TOS AES-256；WP-08 只创建物理隔离资源，应用接入、presign 与扫描属于 WP-10。
 - Worker 以 `APP_ENV=staging` + `NOTIFICATION_ADAPTER=DISABLED` 运行并上报 heartbeat；notification outbox 不会被领取。`LOCAL_TEST` 在 staging 仍启动失败，真实飞书 adapter 属于 WP-11。
 - staging secret 的权威存储是 GitHub `staging` Environment；部署时经单次 SSH 加密通道落盘为 `0600`，不进入 Git、Actions artifact、Terraform CLI 参数或日志。Terraform 加密 TOS state 会保存 RDS account 的敏感属性，因此 state bucket 必须私有、版本化、仅 CI 子用户可读。
@@ -35,9 +35,9 @@ Bootstrap 必须由主账号 Owner 在火山引擎控制台完成，不能使用
 
 1. 创建资源项目 `journey-next-staging`；
 2. 创建私有、版本化、SSE 加密的 TOS state bucket，名称使用 `journey-next-staging-tfstate-<random>`；
-3. 创建无控制台登录能力的 IAM 子用户 `journey-next-staging-ci`；`CloudControlFullAccess` 必须为全局作用范围（CloudControl 控制面不接受项目作用域）；RDS PostgreSQL AllowList 因资源创建前没有可用项目属性，额外使用全局自定义策略 `journey-next-staging-rdspg-allowlist-cn-beijing`，正文只允许 Create/Associate/DescribeDetail/Upgrade/Delete/Disassociate/Describe/Modify 八项 AllowList 动作，并以 `volc:RequestedRegion=cn-beijing` 限定地域；`RDSPGFullAccess` 与 VPC/ECS/EIP/TOS/KMS/Tag 等底层服务权限仍只授权 `journey-next-staging` 项目及 state bucket 必需读写；不得授予旧项目或 IAM 管理权限；
+3. 创建无控制台登录能力的 IAM 子用户 `journey-next-staging-ci`；全局 CloudControl 自定义策略只允许 CreateResource/GetResource/UpdateResource/DeleteResource/GetTask 五项生命周期动作，不得使用 `CloudControlFullAccess`；RDS PostgreSQL AllowList 因资源创建前没有可用项目属性，额外使用全局自定义策略 `journey-next-staging-rdspg-allowlist-cn-beijing`，正文只允许 Create/Associate/DescribeDetail/Upgrade/Delete/Disassociate/Describe/Modify 八项 AllowList 动作，并以 `volc:RequestedRegion=cn-beijing` 限定地域；RDS SSL 两项与 EBS Describe 一项同样使用华北2最小自定义策略；DNS/ECS/RDS/VPC/TOS 服务权限只授权 `journey-next-staging` 项目及 state bucket 必需读写，不授予 `TagFullAccess`、旧项目或 IAM 管理权限；
 4. 创建一次 AK/SK，并直接写入 GitHub repo 的 `staging` Environment secrets `VOLCENGINE_ACCESS_KEY` / `VOLCENGINE_SECRET_KEY`；不得复制到聊天、shell history、文档或本地 `.env`；
-5. 创建 `staging-vnext.muchenai.com` 独立 DNS 子区，将控制台分配的 NS 记录委派到 `muchenai.com`；把子区 ID 写入 Environment secret `WP08_DNS_ZONE_ID`；
+5. 创建 `staging-vnext.muchenai.com` 独立 DNS 子区，将控制台分配的 NS 记录委派到 `muchenai.com`，并把该子区转入 `journey-next-staging` 项目；把子区 ID 写入 Environment secret `WP08_DNS_ZONE_ID`；
 6. 创建 staging-only Ed25519 deploy key；私钥/公钥分别写入 `WP08_DEPLOY_SSH_PRIVATE_KEY` / `WP08_DEPLOY_SSH_PUBLIC_KEY`。Terraform 通过 ECS cloud-init 把公钥写入实例，不创建账号级 ECS KeyPair，避免为 KeyPair 的创建后读取扩大 ECS 全局权限；
 7. 建立费用预算 ¥800/月并设置 50%、80%、100% 告警。预算告警不是强制停机，Terraform 的报价门禁仍必须执行。
 
@@ -59,6 +59,8 @@ make wp08-staging-readiness
 make wp08-staging-apply-check
 ```
 
+Workflow 对每个 Terraform 写路径执行相同的 fail-closed 顺序：生成 saved plan → `terraform show -json` 直接管道到 `scripts/wp08_plan_guard.py` → 仅在没有任何 `delete` action 时 apply 同一个 saved plan。`delete/create` 与 `create/delete` 都视为 replacement 并拒绝；不得把 plan JSON 保存为 artifact、提交到 Git 或打印其中的敏感值。ECS 另有 `prevent_destroy`，不得为了通过计划而关闭。
+
 然后在受保护 `main` 上通过同一 `.github/workflows/staging.yml` 完成两阶段首次部署：
 
 1. `phase=provision`，candidate 输入完整 SHA，confirmation 输入 `DEPLOY_670661_TO_VOLCENGINE_STAGING`。该阶段只创建审查过的隔离基础设施，SSH 保持关闭，不准备 secret bundle、不迁移数据库、不启动应用；
@@ -78,7 +80,7 @@ Workflow 顺序固定：provision 阶段执行合同检查 → TOS remote state 
 ## 6. 回滚与停止
 
 - 应用失败：`deploy.sh` 尝试重新启动 `PREVIOUS_RELEASE`；不回滚已接受业务事实，不自动 downgrade migration。
-- Terraform apply 失败：保留 state 和精确 plan/error，先关闭临时 SSH `/32`；不得无审查重复 apply。
+- Terraform plan/apply 失败：保留 state 和不含敏感值的精确错误引用，先关闭临时 SSH `/32`；不得无审查重复。plan 出现任何 destroy/replacement 时必须在 apply 前停止，并由独立 PR 修复 drift 或重新取得破坏性操作授权；不得关闭 ECS deletion protection/`prevent_destroy` 绕过。
 - CloudControl 长耗时 state refresh 若仅以精确 `InvalidTimestamp: The Signature of the request is expired` 失败，workflow 只允许重新签名并重跑一次只读 `terraform plan`；`apply` 不自动重试，其他错误继续 fail closed。
 - 预算预测或实际成本超过 ¥800、候选/digest 不一致、CA/域名/ACL 不合格、旧资源引用出现：立即 `STOPPED / NO DEPLOY`。
 - 首次部署无 previous release；失败时停止新容器，保留 RDS/TOS 供诊断。删除付费资源属于单独破坏性操作，需用户再次明确授权并先保留必要证据。

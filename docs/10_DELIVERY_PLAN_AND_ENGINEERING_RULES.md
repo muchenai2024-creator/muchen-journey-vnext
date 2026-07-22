@@ -105,6 +105,7 @@
 4. **停止态自举与工具 fail-closed**：快速层、主线层和定向门禁必须能从服务全部停止、空缓存/空数据库的声明状态自举，不依赖预启动 API、宿主已有 `rg` 或某个 Python 小版本。必需工具先显式检查；缺失、扫描器错误和未知状态必须失败，优先在固定摘要容器中运行。
 5. **Ops Greenfield 兼容**：每个工作包开工和收尾分别运行 `muchen-journey-ops` V0.3+ 的 `doctor` 与适用的 `status/gates`；必须识别 `greenfield-vnext`，并诚实保留候选不一致、`NOT_RUN` 和 `NO_GO`。不得复制旧 P1 marker、Make target 或 runbook 绕过识别，也不得建立第二套部署路径。
 6. **Public 仓库证据边界**：Public Git 只保存非敏感资源代号、状态、不可逆哈希和私有证据引用；真实人员/名册、tenant/app ID、未公开域名/IP、ACL 明细、secret 路径内容、运行截图和业务数据进入访问受控的私有证据存储。开工前明确私有证据位置、Owner、访问范围、保留期和公开引用格式；提交前运行 secret/PII 扫描。
+7. **IaC 破坏性计划门禁**：所有 staging `terraform apply` 必须消费同一次生成、机器解析并通过的 saved plan；JSON plan 中任一资源动作包含 `delete`（包括 `delete/create` 与 `create/delete` 两种 replacement）立即停止，不得 apply、自动重试或通过关闭 deletion protection 绕过。plan JSON 只允许在 CI 内存/临时目录处理，不进入 Git、artifact 或日志。
 
 ### 耗时口径与 WP-01 回写
 
