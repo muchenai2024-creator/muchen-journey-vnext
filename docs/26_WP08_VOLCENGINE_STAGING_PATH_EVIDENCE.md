@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-22
-状态：`IMPLEMENTATION_PATH_READY_CLOUD_NOT_APPLIED`
+状态：`BUDGET_REAUTHORIZED_PATCHED_CANDIDATE_PENDING`
 候选：`ff07ce47d20f3f6eb09d633b09292628fbb58e2a`
 整体发布：`NO_GO`
 
@@ -17,10 +17,38 @@
 
 ## 当前未发生
 
-- 火山引擎控制台尚未登录；未创建 IAM、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；
+- 火山引擎控制台已登录并只执行只读报价核验；未创建 IAM、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；
 - 同日官方价格计算器总额仍未写入，`approved_monthly_estimate_cny=null`，因此 apply 门禁按设计失败；
 - GitHub `staging` Environment 的火山引擎身份与 vNext secrets 尚未配置；
 - 没有运行 migration、seed、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；
 - candidate manifest 的 deployment 仍须保持 `NOT_RUN`。
 
-因此该状态只代表 reviewed implementation path ready，不代表 physical staging、发布 GO 或 WP-08 关闭。下一动作是 Owner 登录火山引擎主账号，按 runbook 完成一次性 bootstrap 和同日报价；随后才允许 dispatch 唯一 staging workflow。
+因此该状态不代表 physical staging、发布 GO 或 WP-08 关闭。首次报价触发的停止事实保持不变；后续预算重授权作为新的执行尝试单独记录。
+
+## 2026-07-22 预算门禁
+
+- 火山引擎官方价格计算器核验：华北2（北京）、按量计费、共享型 ECS `ecs.e-c1m2.large`（2C4G）、Linux、40 GiB PL0、EIP 按流量计费，按 720 小时估算为 ¥177.26/月；
+- 火山引擎 PostgreSQL 创建页核验：当前最小高可用配置为 1C2G 主节点 + 1C2G 备节点，配置费用 ¥0.75/小时，即 ¥540/月；
+- 两项小计已达 ¥717.26/月，尚未计入 TOS、备份和实际公网出流量，比授权上限 ¥500 高 ¥217.26；
+- `approved_monthly_estimate_cny` 继续保持 `null`，`make wp08-staging-apply-check` 必须失败；
+- 私有截图和失败记录引用：`PEV-WP08-20260722-BUDGET_GATE`。不含账号 ID、资源 ID、endpoint、凭据或 PII。
+
+预算门禁触发后，本次执行状态为 `STOPPED / NO DEPLOY`。未创建 IAM、项目、VPC、安全组、ECS、RDS、TOS、DNS、证书或预算；未配置云凭据，未 dispatch staging workflow，WP-09 不得启动。后续只能由用户开启新的、范围明确的执行尝试：提高预算，或重新批准不使用托管 RDS 的架构变更。
+
+## 2026-07-22 预算重授权与安全候选要求
+
+- 用户将月预算上限提高到 ¥800，并明确保留火山引擎托管 PostgreSQL RDS；Region 与按量计费不变；
+- 已核 ECS + RDS 固定基线仍为 ¥717.26/月，低于新上限，理论余量约 ¥82.74；TOS、备份和公网流量属于用量型费用，创建前必须刷新同日总报价并保持在 ¥800 内；
+- 用户同时授权把 Next.js 固定到 16.2.11，并通过 npm override 将 sharp 固定到 0.35.3，完成兼容性和安全复验；
+- 旧候选 `ff07ce47d20f3f6eb09d633b09292628fbb58e2a` 不再作为实际部署版本。必须等待包含安全修复的新完整候选 SHA、远端 required check 与 GHCR digest 验证后，再更新机器合同并启动物理 staging；
+- 在此之前 `approved_monthly_estimate_cny` 保持 `null`，apply 门禁继续 fail closed，云端仍不写入。
+
+本地兼容性与安全复验结果：
+
+- `npm ls next eslint-config-next sharp --all`：Next.js 16.2.11、eslint-config-next 16.2.11、sharp 0.35.3 overridden；
+- `npm audit --audit-level=low`：0 vulnerabilities；固定 Python 锁文件审计：No known vulnerabilities found；
+- `make web-check`：lint、TypeScript、Next.js 16.2.11 production build 全部通过；
+- `make ci-fast` 与 `make ci-main`：96 tests passed，OpenAPI、隔离、gitleaks、迁移、HTTP 权限负向和发布 NO_GO 合同全部通过；
+- `make wp08-staging-readiness`：PASS，预算合同已为 ¥800；`make wp08-staging-apply-check` 按设计以“重授权后须刷新同日总报价”失败，不构成部署失败。
+
+远端 required check 证据：PR #5 在包含依赖修复的提交 `43973cbcf9953b893cdee58ec1d5bcf9f70a5155` 上运行 [GitHub Actions 29888061258](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29888061258)，`WP-07 / quick` 于 1m57s 内通过。main 候选打包、GHCR digest 与 physical staging 仍为 `NOT_RUN`。
