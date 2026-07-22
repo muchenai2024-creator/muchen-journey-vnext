@@ -35,8 +35,7 @@ Bootstrap 必须由主账号 Owner 在火山引擎控制台完成，不能使用
 4. 创建一次 AK/SK，并直接写入 GitHub repo 的 `staging` Environment secrets `VOLCENGINE_ACCESS_KEY` / `VOLCENGINE_SECRET_KEY`；不得复制到聊天、shell history、文档或本地 `.env`；
 5. 创建 `staging-vnext.muchenai.com` 独立 DNS 子区，将控制台分配的 NS 记录委派到 `muchenai.com`；把子区 ID 写入 Environment secret `WP08_DNS_ZONE_ID`；
 6. 创建 staging-only Ed25519 deploy key；私钥/公钥分别写入 `WP08_DEPLOY_SSH_PRIVATE_KEY` / `WP08_DEPLOY_SSH_PUBLIC_KEY`；
-7. 从 RDS 控制台下载当前 CA PEM，base64 后写入 `WP08_RDS_CA_PEM_B64`；不复用旧服务器上的 CA 文件；
-8. 建立费用预算 ¥800/月并设置 50%、80%、100% 告警。预算告警不是强制停机，Terraform 的报价门禁仍必须执行。
+7. 建立费用预算 ¥800/月并设置 50%、80%、100% 告警。预算告警不是强制停机，Terraform 的报价门禁仍必须执行。
 
 GitHub `staging` Environment 还需设置：
 
@@ -56,11 +55,17 @@ make wp08-staging-readiness
 make wp08-staging-apply-check
 ```
 
-然后在受保护 `main` 上手工触发 `.github/workflows/staging.yml`，candidate 输入完整 SHA，confirmation 输入 `DEPLOY_670661_TO_VOLCENGINE_STAGING`。这条 workflow 是唯一写入口；本地个人机器不执行 `terraform apply` 或直连部署。
+然后在受保护 `main` 上通过同一 `.github/workflows/staging.yml` 完成两阶段首次部署：
+
+1. `phase=provision`，candidate 输入完整 SHA，confirmation 输入 `DEPLOY_670661_TO_VOLCENGINE_STAGING`。该阶段只创建审查过的隔离基础设施，SSH 保持关闭，不准备 secret bundle、不迁移数据库、不启动应用；
+2. provision 成功且 RDS SSL 已启用后，从新建实例下载当前 CA PEM，base64 后写入 `WP08_RDS_CA_PEM_B64`。不得复用旧实例或旧服务器上的 CA；
+3. `phase=deploy`，使用相同 candidate 与 confirmation。该阶段复用 Terraform state，临时开放 runner 单一 `/32`，随后执行迁移、运行时授权、合成 seed、应用部署和 TLS 验证，并在 `always()` 步骤重新关闭 SSH。
+
+这条 workflow 仍是唯一写入口；两阶段不改变候选、预算或环境授权边界，本地个人机器不执行 `terraform apply` 或直连部署。
 
 ## 5. 部署顺序与证据
 
-Workflow 顺序固定：合同检查 → TOS remote state init → Terraform validate/plan → 临时 runner `/32` → apply → 私有 bundle → GHCR digest pull → migration → runtime grant → PII-free seed → Web/API/Worker/edge → TLS/route → 关闭 SSH。
+Workflow 顺序固定：provision 阶段执行合同检查 → TOS remote state init → Terraform validate/plan → 关闭态 apply → 关闭 SSH；取得新 RDS CA 后，deploy 阶段执行合同检查 → state init → 临时 runner `/32` → apply/no-op 收敛 → 私有 bundle → GHCR digest pull → migration → runtime grant → PII-free seed → Web/API/Worker/edge → TLS/route → 关闭 SSH。
 
 三镜像必须使用 WP-07 已核验 digest，不能只用 tag。公开证据只记录 GitHub run ID、候选 SHA、门禁结果和非敏感资源类别；账号 ID、IP、DNS zone ID、RDS/TOS endpoint、SSH fingerprint、ACL 明细和截图只进入 `evidence/private/wp08` 或 90 天受控外部证据。
 
