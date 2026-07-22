@@ -37,8 +37,6 @@ resource "volcenginecc_vpc_security_group" "app" {
       port_end        = 80
       priority        = 10
       cidr_ip         = "0.0.0.0/0"
-      prefix_list_id  = ""
-      source_group_id = ""
       description     = "ACME redirect only"
     },
     {
@@ -49,8 +47,6 @@ resource "volcenginecc_vpc_security_group" "app" {
       port_end        = 443
       priority        = 10
       cidr_ip         = "0.0.0.0/0"
-      prefix_list_id  = ""
-      source_group_id = ""
       description     = "staging HTTPS"
     },
     {
@@ -61,8 +57,6 @@ resource "volcenginecc_vpc_security_group" "app" {
       port_end        = 22
       priority        = 5
       cidr_ip         = var.deploy_cidr
-      prefix_list_id  = ""
-      source_group_id = ""
       description     = "ephemeral GitHub runner only"
     },
   ]
@@ -75,8 +69,6 @@ resource "volcenginecc_vpc_security_group" "app" {
       port_end        = -1
       priority        = 100
       cidr_ip         = "0.0.0.0/0"
-      prefix_list_id  = ""
-      source_group_id = ""
       description     = "bootstrap outbound; host denylist and isolation scan remain mandatory"
     },
   ]

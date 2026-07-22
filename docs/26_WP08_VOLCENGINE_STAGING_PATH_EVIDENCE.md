@@ -32,6 +32,7 @@
 - 重试 run `29929929570` 已越过 CloudControl 403，但在安全组创建冲突以及 ECS KeyPair 创建后的 `DescribeKeyPairs` 项目权限检查处停止；该 run 不得原样重试；
 - 为保持 ECS 最小权限，不把 `ECSFullAccess` 扩大为全局。部署公钥改由 ECS cloud-init 写入 root `authorized_keys`，取消账号级 ECS KeyPair 资源；安全组、ECS、RDS、TOS 和 DNS 仍显式绑定 staging 项目或 staging 子区；
 - 失败 run 产生的 Terraform partial state 和可能的孤立 KeyPair/安全组必须在下一次 apply 前完成精确核对；不得删除付费资源或扩大权限来绕过收敛。
+- PR #8 合并后，run `29931062181` 已确认 KeyPair 全局读取不再出现；安全组创建仍因规则显式传入空 `prefix_list_id` 而把空 PrefixList TRN 纳入 `vpc:AuthorizeSecurityGroupIngress` 鉴权并停止。修复只删除未使用的空来源选择器，不扩大 `VPCFullAccess` 项目范围。
 
 ## 2026-07-22 预算门禁
 
