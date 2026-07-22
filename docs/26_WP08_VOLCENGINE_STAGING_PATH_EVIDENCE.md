@@ -51,4 +51,4 @@
 - `make ci-fast` 与 `make ci-main`：96 tests passed，OpenAPI、隔离、gitleaks、迁移、HTTP 权限负向和发布 NO_GO 合同全部通过；
 - `make wp08-staging-readiness`：PASS，预算合同已为 ¥800；`make wp08-staging-apply-check` 按设计以“重授权后须刷新同日总报价”失败，不构成部署失败。
 
-上述是本地机器门禁证据。远端 required check、main 候选打包、GHCR digest 与 physical staging 仍为 `NOT_RUN`。
+远端 required check 证据：PR #5 在包含依赖修复的提交 `43973cbcf9953b893cdee58ec1d5bcf9f70a5155` 上运行 [GitHub Actions 29888061258](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29888061258)，`WP-07 / quick` 于 1m57s 内通过。main 候选打包、GHCR digest 与 physical staging 仍为 `NOT_RUN`。
