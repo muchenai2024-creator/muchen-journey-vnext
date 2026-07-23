@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-23
-状态：`PROVISION_CONVERGED_RDS_CA_REQUIRED`
+状态：`DEPLOY_STOPPED_SECURITY_GROUP_MODEL_REMEDIATION_REQUIRED`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -22,7 +22,7 @@
 - 用户明确授权后已创建并附加全局只读策略 `journey-next-staging-dns-query-record-global`：正文仅允许 `dns:QueryRecord`，资源范围为 `*`，只附加给 `journey-next-staging-ci`，不受项目限制；授权页已反向核验。原 DNS/ECS/RDS/VPC/TOS 服务权限继续限定 `journey-next-staging`，本次未修改其他策略；
 - 第三次 provision run `29974201816` 失败后没有自动重试；DNS state 精确纳管与 RDS 串行修复已由 PR #20 通过 required check 并合入主线 `af6443d9f4d3b25513c840557c9755e78758e092`，没有扩大 IAM；
 - 本轮唯一新 provision run `29994013611` 已成功：DNS 精确 import、`0 add / 4 change / 0 destroy` saved plan、无破坏性门禁和 apply 均通过；应用部署步骤按 phase 正确跳过；
-- 尚未执行 migration、seed、应用容器部署、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；下一门槛是取得新实例 RDS CA，候选 deployment 仍为 `NOT_RUN`，WP-08 未关闭，整体发布为 `NO_GO`。
+- 新实例 RDS CA 已取得、离线校验并以 base64 PEM secret 写入 GitHub `staging` Environment；首次 deploy 在临时 SSH 安全组更新处安全停止。尚未执行 migration、seed、应用容器部署、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；候选 deployment 仍为 `NOT_RUN`，WP-08 未关闭，整体发布为 `NO_GO`。
 
 ## 2026-07-22 路径设计时未发生（历史快照）
 
@@ -120,3 +120,13 @@
 - 修复由 PR #20 合入受保护主线，required check 与主线 Candidate Gate 均通过；本地私有证据引用为 `GH_RUN_29994013611`。
 - 合入后只触发一次 `phase=provision`：run [`29994013611`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29994013611)，workflow HEAD `af6443d9f4d3b25513c840557c9755e78758e092`；DNS import 成功，saved plan 为 `0 add / 4 change / 0 destroy`，`WP08_TERRAFORM_PLAN_GUARD=PASS`，apply 为 `0 added / 4 changed / 0 destroyed`；
 - `Prepare private deploy bundle`、镜像部署、外部 TLS 验证和 SSH 清理均按 provision phase 跳过，没有 migration、seed、容器或域名发布；当前状态为 `PROVISION_CONVERGED_RDS_CA_REQUIRED`。下一步需取得该 RDS 实例当前 CA 并写入 GitHub staging Environment；deploy 需要新的明确授权，候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
+
+## 2026-07-23 RDS CA 与首次 Deploy
+
+- 火山引擎控制台反向核验目标 staging RDS 已启用 SSL、强制加密并允许 TLS 1.2/1.3；下载的新 CA bundle 只含一张可解析的 `CA:TRUE` PEM 证书，剩余有效期超过 30 天。证书正文未写入日志、Git 或公开证据；
+- CA 已通过 stdin 以 base64 PEM 写入 GitHub `staging` Environment secret `WP08_RDS_CA_PEM_B64`，随后只按名称与更新时间确认 secret 存在，没有读回 secret 内容；
+- 写入前重新执行候选、仓库、workflow、secret presence、最新 provision 与并发运行复验；候选 `670661865f708a835997596ed5b74904809564a5` 的受保护主线门禁和三镜像 registry digest 保持通过，最新 provision run `29994013611` 成功，且 dispatch 时没有其他 staging run；
+- 用户明确授权后只触发一次 `phase=deploy`：run [`29997923817`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29997923817)，workflow HEAD `936502fe75213250e0d91e6fe789e8cd127ea269`；没有自动重试；
+- deploy 的候选合同、remote state 初始化和 DNS 精确对账均通过；saved plan 为 `0 add / 5 change / 0 destroy`，`WP08_TERRAFORM_PLAN_GUARD=PASS`。apply 在打开当前 runner 单一 `/32` 的临时 SSH 路径时停止：CloudControl 的安全组更新请求再次把空 PrefixList 引用纳入 `vpc:AuthorizeSecurityGroupIngress` 鉴权，越出项目限定资源边界；
+- 该失败与预期的项目限定 VPC 权限模型不一致，不得通过授予全局 `VPCFullAccess` 或空 PrefixList 权限绕过。后续必须修正安全组嵌套集合/provider 更新模型或改用等价的最小、可清理临时访问路径，并重新通过代码、计划和权限复验后取得新的单次 deploy 授权；
+- `Prepare private deploy bundle`、migration、镜像部署与外部 TLS 验证均被跳过；`always()` 关闭 SSH 步骤生成 `0 add / 1 change / 0 destroy` plan、再次通过破坏性门禁并成功 apply。当前未留下 runner SSH 放行，候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
