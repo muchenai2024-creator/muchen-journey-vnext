@@ -1,6 +1,6 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`PROVISION_CONVERGED_RDS_CA_REQUIRED`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。DNS 精确 import 与 RDS 串行修复已由 PR #20 通过 required check 并合入主线；随后唯一新 run `29994013611` 以 `0 add / 4 change / 0 destroy` 通过门禁并成功收敛。应用部署、migration、TLS 与 browser smoke 尚未执行；下一步必须取得本实例的 RDS CA 并安全写入 `WP08_RDS_CA_PEM_B64`，deploy 仍需新的明确授权。
+状态：`DEPLOY_REMEDIATION_READY`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。Provision 已收敛且新 RDS CA 已写入 `WP08_RDS_CA_PEM_B64`。首次 deploy 因 CloudControl 更新安全组时错误序列化空 PrefixList 而安全停止；最小修复保持 Terraform 中 SSH 关闭态不变，只在同一 workflow 内用 VPC API 添加并撤销当前 runner 的单一 `/32`。应用部署、migration、TLS 与 browser smoke仍未执行。
 
 ## 1. 已锁定授权
 
@@ -19,7 +19,7 @@
 
 - 新建项目与资源统一使用 `journey-next-staging-*`；禁止使用旧账号 AK/SK、旧 VPC/安全组、旧 ECS/RDS、旧 TOS bucket/prefix、旧部署脚本、旧 Sentry 项目或旧飞书应用。
 - `staging-vnext.muchenai.com` 建为独立 DNS 子区；主域 `muchenai.com` 只增加该子区的 NS 委派，不把根区凭证交给 staging CI。
-- ECS 只公开 80/443；22 端口默认只接受 `127.0.0.1/32`，部署期间临时改为当前 GitHub runner 的单一 `/32`，`always()` 步骤恢复关闭态。
+- ECS 只公开 80/443；Terraform 中 22 端口始终只接受 `127.0.0.1/32`。部署期间由同一 workflow 直接调用 VPC API 临时添加当前 GitHub runner 的单一 `/32`，`always()` 步骤按完全相同的 CIDR/协议/端口/优先级/描述撤销并反向确认；不得让 CloudControl 重写安全组嵌套集合。
 - 每条安全组规则只声明实际使用的来源选择器；CIDR 规则不得同时传入空 `prefix_list_id` 或 `source_group_id`，否则 CloudControl 会把空 PrefixList TRN 纳入 IAM 鉴权并越出项目边界。
 - 安全组及规则描述只使用火山引擎允许的中英文、数字、空格、逗号、句号、下划线、等号和连字符；禁止分号等未支持标点。
 - 自定义安全组创建时平台会自动加入允许 `0.0.0.0/0`、ALL 协议/端口的默认出站规则；Terraform 不得重复声明同一规则，否则 CloudControl 以 `InvalidSecurityRule.Conflict` 拒绝。出站收敛继续由主机 denylist 与隔离复验负责。
@@ -62,19 +62,19 @@ make wp08-staging-readiness
 make wp08-staging-apply-check
 ```
 
-Workflow 对每个 Terraform 写路径执行相同的 fail-closed 顺序：生成 saved plan → `terraform show -json` 直接管道到 `scripts/wp08_plan_guard.py` → 仅在没有任何 `delete` action 时 apply 同一个 saved plan。`delete/create` 与 `create/delete` 都视为 replacement 并拒绝；不得把 plan JSON 保存为 artifact、提交到 Git 或打印其中的敏感值。ECS 另有 `prevent_destroy`，不得为了通过计划而关闭。deploy 的 SSH 清理在 Terraform 初始化成功后以 `always()` 执行，并用 `-target=volcenginecc_vpc_security_group.app` 只收敛安全组，不得借清理步骤继续创建或修改其他基础设施。
+唯一 Terraform 写路径执行 fail-closed 顺序：生成 saved plan → `terraform show -json` 直接管道到 `scripts/wp08_plan_guard.py` → 仅在没有任何 `delete` action 时 apply 同一个 saved plan。`delete/create` 与 `create/delete` 都视为 replacement 并拒绝；不得把 plan JSON 保存为 artifact、提交到 Git 或打印其中的敏感值。ECS 另有 `prevent_destroy`，不得为了通过计划而关闭。deploy 的 SSH 开关不再经过 Terraform/CloudControl；`scripts/wp08_security_group.py` 只允许一个公网 IPv4 `/32`，请求不得包含 `PrefixListId` 或 `SourceGroupId`，并在每次开关后只读确认精确规则数量。
 
 然后在受保护 `main` 上通过同一 `.github/workflows/staging.yml` 完成两阶段首次部署：
 
 1. `phase=provision`，candidate 输入完整 SHA，confirmation 输入 `DEPLOY_670661_TO_VOLCENGINE_STAGING`。该阶段只创建审查过的隔离基础设施，SSH 保持关闭，不准备 secret bundle、不迁移数据库、不启动应用；
 2. provision 成功且 RDS SSL 已启用后，从新建实例下载当前 CA PEM，base64 后写入 `WP08_RDS_CA_PEM_B64`。不得复用旧实例或旧服务器上的 CA；
-3. `phase=deploy`，使用相同 candidate 与 confirmation。该阶段复用 Terraform state，临时开放 runner 单一 `/32`，随后执行迁移、运行时授权、合成 seed、应用部署和 TLS 验证，并在 `always()` 步骤重新关闭 SSH。
+3. `phase=deploy`，使用相同 candidate 与 confirmation。该阶段先以关闭态收敛 Terraform，再直接添加 runner 单一 `/32`，随后执行迁移、运行时授权、合成 seed、应用部署和 TLS 验证，并在 `always()` 步骤撤销该精确规则。
 
 这条 workflow 仍是唯一写入口；两阶段不改变候选、预算或环境授权边界，本地个人机器不执行 `terraform apply` 或直连部署。
 
 ## 5. 部署顺序与证据
 
-Workflow 顺序固定：provision 阶段执行合同检查 → TOS remote state init → Terraform validate → DNS 只读精确匹配与 state import/identity 核对 → Terraform saved plan → 破坏性门禁 → 关闭态 apply → 关闭 SSH；取得新 RDS CA 后，deploy 阶段执行合同检查 → state init → DNS identity 核对 → 临时 runner `/32` → saved plan/门禁/apply 或 no-op 收敛 → 私有 bundle → GHCR digest pull → migration → runtime grant → PII-free seed → Web/API/Worker/edge → TLS/route → 关闭 SSH。
+Workflow 顺序固定：provision 阶段执行合同检查 → TOS remote state init → Terraform validate → DNS 只读精确匹配与 state import/identity 核对 → Terraform saved plan → 破坏性门禁 → 关闭态 apply；deploy 阶段执行同一合同/state/DNS/关闭态 Terraform 收敛 → VPC API 临时 runner `/32` → 私有 bundle → GHCR digest pull → migration → runtime grant → PII-free seed → Web/API/Worker/edge → TLS/route → VPC API 撤销精确 SSH 规则。
 
 三镜像必须使用 WP-07 已核验 digest，不能只用 tag。公开证据只记录 GitHub run ID、候选 SHA、门禁结果和非敏感资源类别；账号 ID、IP、DNS zone ID、RDS/TOS endpoint、SSH fingerprint、ACL 明细和截图只进入 `evidence/private/wp08` 或 90 天受控外部证据。
 
@@ -83,7 +83,7 @@ Workflow 顺序固定：provision 阶段执行合同检查 → TOS remote state 
 ## 6. 回滚与停止
 
 - 应用失败：`deploy.sh` 尝试重新启动 `PREVIOUS_RELEASE`；不回滚已接受业务事实，不自动 downgrade migration。
-- Terraform plan/apply 失败：保留 state 和不含敏感值的精确错误引用，先关闭临时 SSH `/32`；不得无审查重复。plan 出现任何 destroy/replacement 时必须在 apply 前停止，并由独立 PR 修复 drift 或重新取得破坏性操作授权；不得关闭 ECS deletion protection/`prevent_destroy` 绕过。
+- Terraform plan/apply 失败：保留 state 和不含敏感值的精确错误引用；此时尚未添加临时 SSH 规则。VPC API、bundle、部署或验证失败时，`always()` 必须撤销并确认当前 runner `/32`；不得无审查重复。plan 出现任何 destroy/replacement 时必须在 apply 前停止，并由独立 PR 修复 drift 或重新取得破坏性操作授权；不得关闭 ECS deletion protection/`prevent_destroy` 绕过。
 - CloudControl 长耗时 state refresh 若仅以精确 `InvalidTimestamp: The Signature of the request is expired` 失败，workflow 只允许重新签名并重跑一次只读 `terraform plan`；`apply` 不自动重试，其他错误继续 fail closed。
 - 预算预测或实际成本超过 ¥800、候选/digest 不一致、CA/域名/ACL 不合格、旧资源引用出现：立即 `STOPPED / NO DEPLOY`。
 - 首次部署无 previous release；失败时停止新容器，保留 RDS/TOS 供诊断。删除付费资源属于单独破坏性操作，需用户再次明确授权并先保留必要证据。

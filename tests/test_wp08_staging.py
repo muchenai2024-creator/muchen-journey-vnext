@@ -204,25 +204,27 @@ def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, mo
             "if: inputs.phase == 'deploy'",
             "if: inputs.phase == 'deploy'",
             "if: inputs.phase == 'deploy'",
+            "if: inputs.phase == 'deploy'",
             'terraform show -json "$plan_file" | python3 ../../scripts/wp08_plan_guard.py',
             "scripts/wp08_dns_record.py",
+            "python3 -m scripts.wp08_security_group open",
+            "python3 -m scripts.wp08_security_group close",
             "terraform state pull | jq -er",
             'terraform import "$address" "$expected_id"',
             'terraform apply -auto-approve "$plan_file"',
-            "-target=volcenginecc_vpc_security_group.app",
-            'terraform show -json "$close_plan" | python3 ../../scripts/wp08_plan_guard.py',
-            'terraform apply -auto-approve "$close_plan"',
+            '-var="deploy_cidr=127.0.0.1/32"',
+            "if: always() && inputs.phase == 'deploy' && steps.infrastructure.outputs.security_group_id != ''",
         )
     )
     workflow.write_text(source)
     staging.validate_workflow(workflow)
 
     workflow.write_text(source.replace("scripts/wp08_plan_guard.py", "scripts/missing.py", 1))
-    with pytest.raises(staging.StagingError, match="every WP-08 apply path"):
+    with pytest.raises(staging.StagingError, match="missing bootstrap marker"):
         staging.validate_workflow(workflow)
 
-    workflow.write_text(source.replace("-target=volcenginecc_vpc_security_group.app", ""))
-    with pytest.raises(staging.StagingError, match="target only the staging security group"):
+    workflow.write_text(source.replace("scripts.wp08_security_group close", "missing"))
+    with pytest.raises(staging.StagingError, match="missing bootstrap marker"):
         staging.validate_workflow(workflow)
 
 
