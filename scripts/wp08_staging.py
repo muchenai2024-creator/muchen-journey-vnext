@@ -108,6 +108,7 @@ def validate_files() -> None:
         "deploy/staging/grant_runtime.py",
         "deploy/staging/deploy.sh",
         "scripts/wp08_plan_guard.py",
+        "scripts/wp08_dns_record.py",
     ]
     for relative in required:
         path = ROOT / relative
@@ -134,6 +135,8 @@ def validate_infrastructure() -> None:
         'KbdInteractiveAuthentication no',
         'PermitRootLogin prohibit-password',
         "prevent_destroy = true",
+        "depends_on = [volcenginecc_rdspostgresql_instance_ssl.staging]",
+        "depends_on = [volcenginecc_rdspostgresql_db_account.migration]",
     )
     for marker in required_main:
         if marker not in main:
@@ -142,6 +145,14 @@ def validate_infrastructure() -> None:
         raise StagingError("ECS bootstrap password must have exactly one non-output consumer")
     if "key_pair_name" in main.lower():
         raise StagingError("staging ECS must not depend on an account-level KeyPair")
+    if main.count(
+        "depends_on = [volcenginecc_rdspostgresql_instance_ssl.staging]"
+    ) != 1:
+        raise StagingError("migration account must wait for the RDS SSL mutation")
+    if main.count(
+        "depends_on = [volcenginecc_rdspostgresql_db_account.migration]"
+    ) != 1:
+        raise StagingError("runtime account must wait for the migration account mutation")
     ecs_start = main.find('resource "volcenginecc_ecs_instance" "app"')
     ecs_end = main.find('\nresource "', ecs_start + 1)
     if ecs_start < 0:
@@ -250,6 +261,9 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
         "if: always() && inputs.phase == 'deploy' && steps.terraform_init.outcome == 'success'",
         "terraform show -json",
         "scripts/wp08_plan_guard.py",
+        "scripts/wp08_dns_record.py",
+        'terraform import "$address" "$expected_id"',
+        "terraform state pull | jq -er",
         'terraform apply -auto-approve "$plan_file"',
         'terraform apply -auto-approve "$close_plan"',
     )
@@ -260,6 +274,12 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
         raise StagingError("staging workflow deploy-only step count must be exactly 3")
     if workflow.count("scripts/wp08_plan_guard.py") != 2:
         raise StagingError("every WP-08 apply path must have one destructive-plan guard")
+    if workflow.count("scripts/wp08_dns_record.py") != 1:
+        raise StagingError("WP-08 must identify the existing DNS record exactly once")
+    if workflow.count('terraform import "$address" "$expected_id"') != 1:
+        raise StagingError("WP-08 DNS reconciliation must have exactly one import path")
+    if workflow.count("terraform state pull | jq -er") != 1:
+        raise StagingError("WP-08 must verify the existing DNS state identity exactly once")
     if workflow.count("-target=volcenginecc_vpc_security_group.app") != 1:
         raise StagingError("WP-08 SSH cleanup must target only the staging security group")
     if "terraform apply -auto-approve -var=" in workflow:

@@ -134,6 +134,10 @@ resource "volcenginecc_rdspostgresql_db_account" "migration" {
   account_password   = var.migration_db_password
   account_type       = "Normal"
   account_privileges = "Login,Inherit"
+
+  # RDS PostgreSQL applies SSL and account mutations under one exclusive
+  # instance lock. Keep these operations serial across partial/retry applies.
+  depends_on = [volcenginecc_rdspostgresql_instance_ssl.staging]
 }
 
 resource "volcenginecc_rdspostgresql_db_account" "runtime" {
@@ -143,6 +147,8 @@ resource "volcenginecc_rdspostgresql_db_account" "runtime" {
   account_type         = "Normal"
   account_privileges   = "Login,Inherit"
   not_allow_privileges = ["DDL"]
+
+  depends_on = [volcenginecc_rdspostgresql_db_account.migration]
 }
 
 resource "volcenginecc_rdspostgresql_database" "staging" {
