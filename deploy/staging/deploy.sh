@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT=/srv/journey-next-staging
-SECRETS="$ROOT/secrets"
+SECRETS="$PWD/secrets"
 
 fail() {
   printf 'WP08_DEPLOY_ERROR: %s\n' "$*" >&2
