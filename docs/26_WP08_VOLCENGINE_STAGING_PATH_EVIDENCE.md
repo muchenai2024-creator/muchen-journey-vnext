@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
-日期：2026-07-23
-状态：`ALPHA_PILOT_PATH_READY`
+日期：2026-07-24
+状态：`ALPHA_PILOT_SECRET_PATH_FIX_READY`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -22,7 +22,7 @@
 - 用户明确授权后已创建并附加全局只读策略 `journey-next-staging-dns-query-record-global`：正文仅允许 `dns:QueryRecord`，资源范围为 `*`，只附加给 `journey-next-staging-ci`，不受项目限制；授权页已反向核验。原 DNS/ECS/RDS/VPC/TOS 服务权限继续限定 `journey-next-staging`，本次未修改其他策略；
 - 第三次 provision run `29974201816` 失败后没有自动重试；DNS state 精确纳管与 RDS 串行修复已由 PR #20 通过 required check 并合入主线 `af6443d9f4d3b25513c840557c9755e78758e092`，没有扩大 IAM；
 - 本轮唯一新 provision run `29994013611` 已成功：DNS 精确 import、`0 add / 4 change / 0 destroy` saved plan、无破坏性门禁和 apply 均通过；应用部署步骤按 phase 正确跳过；
-- 新实例 RDS CA 已取得并写入 GitHub `staging` Environment；安全组最小修复已由 PR #25 合入，run `30020569136` 越过基础设施和临时 SSH，但在应用启动前因既有 ECS 缺少创建期候选标记停止，随后确认 SSH 规则已撤销。Alpha 路径现已从应用 deploy 中移除 DNS/provider/plan/apply 耦合；migration、容器、TLS、browser smoke、真实身份和真人 UAT仍为 `NOT_RUN`，整体发布为 `NO_GO`。
+- 新实例 RDS CA 已取得并写入 GitHub `staging` Environment；Alpha deploy 已移除 DNS/provider/plan/apply 耦合。run `30026998583` 成功读取冻结 state、打开精确 runner `/32` 并准备 bundle，但在 migration 前因发布脚本错误读取全局 secret 路径停止；SSH 已确认关闭且未重试。release-local secret 路径修复与机器测试已就绪；migration、容器、TLS、browser smoke、真实身份和真人 UAT仍为 `NOT_RUN`，整体发布为 `NO_GO`。
 
 ## 2026-07-22 路径设计时未发生（历史快照）
 
@@ -153,3 +153,11 @@
 - 根据硬停止条件，不再修补当前 provider/apply 链。仍复用同一 `.github/workflows/staging.yml`：`provision` 保留唯一 IaC 写路径；Alpha `deploy` 只读取冻结 state 输出，不运行 DNS import、provider refresh、plan 或 apply；
 - 发布脚本直接核对授权候选和三个 GHCR digest，不再依赖 ECS 创建期标记；每次发布使用带 run ID 的新目录，失败不覆盖旧目录，GHCR 登录通过退出 trap 清理；
 - 本节仅表示新路径代码与机器门禁就绪，尚未执行新的 Alpha deploy。真实身份与真人 Alpha UAT 仍不得提前标记为通过，整体发布继续为 `NO_GO`。
+
+## 2026-07-24 Alpha Secret 路径失败与最小修复
+
+- 用户精确授权候选 `670661865f708a835997596ed5b74904809564a5` 在 staging 只执行一次 Alpha `phase=deploy`，失败不重试；唯一 run [`30026998583`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/30026998583) 使用主线 `d393321aa24c3b5b7b04b49559af2f1686fcd729`；
+- 候选合同、加密 state 初始化和冻结输出读取通过；DNS、Terraform plan/apply 与 CloudControl 步骤按设计跳过。精确 runner `/32`、私有 bundle 和 GHCR 登录通过；
+- `deploy.sh` 在 migration 前以 `secret file api.env is missing` 停止。bundle 实际把六个 `0600` secret 放在本次 release 的 `secrets/`，Compose 也使用相对路径；脚本却固定读取 `/srv/journey-next-staging/secrets`，因此是单一发布包路径错误，不是 IAM、provider、RDS 或候选失败；
+- 外部 TLS 被跳过，`always()` 已确认 runner SSH 规则为关闭态；未运行 migration、seed 或容器，未自动重试。失败 release 目录可能保留 root-only bundle，后续清理属于新的受控操作；
+- 最小修复只把 `SECRETS` 指向当前 release 的 `$PWD/secrets`，并由 staging 校验测试锁定该合同；不新增 workflow、资源、IAM、secret 或依赖。新的 Alpha deploy 仍需独立精确授权。

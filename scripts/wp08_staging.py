@@ -20,6 +20,7 @@ CONTRACT = ROOT / "config" / "wp08_staging.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "staging.yml"
 INFRA_MAIN = ROOT / "infra" / "staging" / "main.tf"
 INFRA_VERSIONS = ROOT / "infra" / "staging" / "versions.tf"
+DEPLOY_SCRIPT = ROOT / "deploy" / "staging" / "deploy.sh"
 PRIVATE_EVIDENCE = ROOT / "evidence" / "private" / "wp08"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -118,6 +119,15 @@ def validate_files() -> None:
     mode = stat.S_IMODE((ROOT / "deploy/staging/deploy.sh").stat().st_mode)
     if mode != 0o755:
         raise StagingError("deploy/staging/deploy.sh must be mode 0755")
+    validate_deploy_script()
+
+
+def validate_deploy_script(path: Path = DEPLOY_SCRIPT) -> None:
+    script = path.read_text()
+    if 'SECRETS="$PWD/secrets"' not in script:
+        raise StagingError("staging deploy must read release-local secrets")
+    if 'SECRETS="$ROOT/secrets"' in script:
+        raise StagingError("staging deploy must not read the obsolete global secret path")
 
 
 def validate_infrastructure() -> None:

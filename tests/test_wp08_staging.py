@@ -189,6 +189,16 @@ def test_infrastructure_rejects_unreviewed_ignore_set_and_mutable_allowlist_bind
         staging.validate_infrastructure()
 
 
+def test_deploy_requires_release_local_secrets(tmp_path: Path):
+    script = tmp_path / "deploy.sh"
+    script.write_text('SECRETS="$PWD/secrets"\n')
+    staging.validate_deploy_script(script)
+
+    script.write_text('SECRETS="$ROOT/secrets"\n')
+    with pytest.raises(staging.StagingError, match="release-local"):
+        staging.validate_deploy_script(script)
+
+
 def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, monkeypatch):
     versions, main = infrastructure_files(tmp_path)
     monkeypatch.setattr(staging, "INFRA_VERSIONS", versions)
