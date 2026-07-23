@@ -161,3 +161,4 @@
 - `deploy.sh` 在 migration 前以 `secret file api.env is missing` 停止。bundle 实际把六个 `0600` secret 放在本次 release 的 `secrets/`，Compose 也使用相对路径；脚本却固定读取 `/srv/journey-next-staging/secrets`，因此是单一发布包路径错误，不是 IAM、provider、RDS 或候选失败；
 - 外部 TLS 被跳过，`always()` 已确认 runner SSH 规则为关闭态；未运行 migration、seed 或容器，未自动重试。失败 release 目录可能保留 root-only bundle，后续清理属于新的受控操作；
 - 最小修复只把 `SECRETS` 指向当前 release 的 `$PWD/secrets`，并由 staging 校验测试锁定该合同；不新增 workflow、资源、IAM、secret 或依赖。新的 Alpha deploy 仍需独立精确授权。
+- 合入修复后的离线审计进一步发现原顺序会在确认 Web、Worker 与 Edge 镜像可拉取前执行数据库迁移；发布脚本现先运行 Compose 合并配置校验并拉取全部固定 digest，再允许 migration。该调整没有云端写入，也没有消费新的 deploy 授权。
