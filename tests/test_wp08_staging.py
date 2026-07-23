@@ -59,6 +59,7 @@ def infrastructure_files(tmp_path: Path) -> tuple[Path, Path]:
                 'PasswordAuthentication no',
                 'KbdInteractiveAuthentication no',
                 'PermitRootLogin prohibit-password',
+                'stopped_mode              = "KeepCharging"',
                 'prevent_destroy = true',
                 'ignore_changes = [',
                 'eip_address.bandwidth_mbps',

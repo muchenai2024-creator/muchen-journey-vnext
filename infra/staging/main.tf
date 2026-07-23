@@ -198,7 +198,7 @@ resource "volcenginecc_ecs_instance" "app" {
   zone_id                   = var.primary_zone_id
   deletion_protection       = true
   install_run_command_agent = true
-  stopped_mode              = "StopCharging"
+  stopped_mode              = "KeepCharging"
   spot_strategy             = "NoSpot"
   password                  = random_password.ecs_bootstrap.result
   image = {
