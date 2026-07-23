@@ -2,9 +2,7 @@
 set -euo pipefail
 
 ROOT=/srv/journey-next-staging
-RELEASES="$ROOT/releases"
 SECRETS="$ROOT/secrets"
-EXPECTED_CANDIDATE_FILE="$ROOT/EXPECTED_CANDIDATE"
 
 fail() {
   printf 'WP08_DEPLOY_ERROR: %s\n' "$*" >&2
@@ -12,10 +10,7 @@ fail() {
 }
 
 [[ "${EUID}" -eq 0 ]] || fail "deploy.sh must run as root"
-[[ -f "$EXPECTED_CANDIDATE_FILE" ]] || fail "expected candidate marker is missing"
-EXPECTED_CANDIDATE=$(tr -d '\r\n' <"$EXPECTED_CANDIDATE_FILE")
-[[ "${CANDIDATE_COMMIT:-}" == "$EXPECTED_CANDIDATE" ]] || fail "candidate differs from provisioned authorization"
-[[ "$CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || fail "candidate must be one full lowercase SHA"
+[[ "${CANDIDATE_COMMIT:-}" == "670661865f708a835997596ed5b74904809564a5" ]] || fail "unexpected candidate"
 [[ "${STAGING_HOST:-}" == "staging-vnext.muchenai.com" ]] || fail "unexpected staging host"
 
 for name in API_IMAGE WEB_IMAGE WORKER_IMAGE; do

@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-23
-状态：`DEPLOY_REMEDIATION_READY`
+状态：`ALPHA_PILOT_PATH_READY`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -22,7 +22,7 @@
 - 用户明确授权后已创建并附加全局只读策略 `journey-next-staging-dns-query-record-global`：正文仅允许 `dns:QueryRecord`，资源范围为 `*`，只附加给 `journey-next-staging-ci`，不受项目限制；授权页已反向核验。原 DNS/ECS/RDS/VPC/TOS 服务权限继续限定 `journey-next-staging`，本次未修改其他策略；
 - 第三次 provision run `29974201816` 失败后没有自动重试；DNS state 精确纳管与 RDS 串行修复已由 PR #20 通过 required check 并合入主线 `af6443d9f4d3b25513c840557c9755e78758e092`，没有扩大 IAM；
 - 本轮唯一新 provision run `29994013611` 已成功：DNS 精确 import、`0 add / 4 change / 0 destroy` saved plan、无破坏性门禁和 apply 均通过；应用部署步骤按 phase 正确跳过；
-- 新实例 RDS CA 已取得、离线校验并以 base64 PEM secret 写入 GitHub `staging` Environment；首次 deploy 在临时 SSH 安全组更新处安全停止。尚未执行 migration、seed、应用容器部署、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；候选 deployment 仍为 `NOT_RUN`，WP-08 未关闭，整体发布为 `NO_GO`。
+- 新实例 RDS CA 已取得并写入 GitHub `staging` Environment；安全组最小修复已由 PR #25 合入，run `30020569136` 越过基础设施和临时 SSH，但在应用启动前因既有 ECS 缺少创建期候选标记停止，随后确认 SSH 规则已撤销。Alpha 路径现已从应用 deploy 中移除 DNS/provider/plan/apply 耦合；migration、容器、TLS、browser smoke、真实身份和真人 UAT仍为 `NOT_RUN`，整体发布为 `NO_GO`。
 
 ## 2026-07-22 路径设计时未发生（历史快照）
 
@@ -144,3 +144,12 @@
 - 首次 plan 因精确 `InvalidTimestamp` 按既定合同只重签并重跑一次只读 plan；第二次得到 `0 add / 4 change / 0 destroy`，破坏性门禁通过；
 - apply 中 RDS 账号与 TOS 原地收敛成功，ECS 因 Terraform 试图把实例当前 `KeepCharging` 改为 `StopCharging` 而被 CloudControl 以枚举校验失败拒绝。临时 SSH 规则尚未添加，因此 bundle、migration、容器、TLS 与清理均未运行；
 - 月度预算本来按 ECS 整月运行估算；最小修复只把 `stopped_mode` 配置改为实例当前且该规格支持的 `KeepCharging`，不新增忽略项、权限、资源或费用假设。新的 deploy 仍需独立授权。
+
+## 2026-07-23 硬停止与 Alpha 试点路径
+
+- 安全组真实响应修复提交 `d20f263215f3abbd60e22d3c9d9529295085c063` 通过 PR #25 合入主线 `5e700afaeac6ef2bddcc83e6359e15e6f4bc1133`，required check 与 Mainline Candidate Gate 均通过；
+- 按用户“一次且失败不重试”的边界，只触发 run [`30020569136`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/30020569136)。候选合同、remote state、DNS、无破坏性基础设施收敛、精确 runner `/32`、私有 bundle 均通过；
+- `Deploy exact registry digests` 在 migration 和容器启动前以 `expected candidate marker is missing` 停止。原因是标记只由 ECS 创建期 cloud-init 写入，而既有导入实例按受审模型忽略 `user_data` 变化；TLS 验证被跳过，`always()` 已确认 SSH 入口关闭，没有第二次 dispatch；
+- 根据硬停止条件，不再修补当前 provider/apply 链。仍复用同一 `.github/workflows/staging.yml`：`provision` 保留唯一 IaC 写路径；Alpha `deploy` 只读取冻结 state 输出，不运行 DNS import、provider refresh、plan 或 apply；
+- 发布脚本直接核对授权候选和三个 GHCR digest，不再依赖 ECS 创建期标记；每次发布使用带 run ID 的新目录，失败不覆盖旧目录，GHCR 登录通过退出 trap 清理；
+- 本节仅表示新路径代码与机器门禁就绪，尚未执行新的 Alpha deploy。真实身份与真人 Alpha UAT 仍不得提前标记为通过，整体发布继续为 `NO_GO`。
