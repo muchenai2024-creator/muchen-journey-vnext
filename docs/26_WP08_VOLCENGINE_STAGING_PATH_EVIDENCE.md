@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-23
-状态：`RECONCILIATION_FIX_IN_REVIEW_PROVISION_AUTHORIZED`
+状态：`PROVISION_CONVERGED_RDS_CA_REQUIRED`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -20,8 +20,9 @@
 - 独立 staging 项目中的部分 IAM、VPC、安全组、ECS、RDS/TOS 与 DNS 资源已由唯一受审 workflow 创建或纳管；资源和 remote state 的逐项事实以私有证据为准，公开仓库不记录账号、资源 ID、endpoint、IP、凭据或人员信息；
 - 第二次 provision run `29945430858` 在无 destroy/replacement 的门禁通过后停止；RDS AllowList 与 DNS 查询权限的代码侧修复已由 PR #17 合并到主线 `1791ea6d89a290cf4ff41e5c4a9e27fb64d7213c`，required check 通过；
 - 用户明确授权后已创建并附加全局只读策略 `journey-next-staging-dns-query-record-global`：正文仅允许 `dns:QueryRecord`，资源范围为 `*`，只附加给 `journey-next-staging-ci`，不受项目限制；授权页已反向核验。原 DNS/ECS/RDS/VPC/TOS 服务权限继续限定 `journey-next-staging`，本次未修改其他策略；
-- 第三次且唯一一次新 provision run `29974201816` 已执行并失败，没有自动重试。saved plan 与破坏性门禁通过，RDS SSL 已成功启用；DNS state 精确纳管与 RDS 串行修复正在受保护主线审查中，不能把本次失败解释为继续扩大 IAM 的依据；
-- 尚未执行 migration、seed、应用容器部署、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；候选 deployment 仍为 `NOT_RUN`，WP-08 未关闭，整体发布为 `NO_GO`。
+- 第三次 provision run `29974201816` 失败后没有自动重试；DNS state 精确纳管与 RDS 串行修复已由 PR #20 通过 required check 并合入主线 `af6443d9f4d3b25513c840557c9755e78758e092`，没有扩大 IAM；
+- 本轮唯一新 provision run `29994013611` 已成功：DNS 精确 import、`0 add / 4 change / 0 destroy` saved plan、无破坏性门禁和 apply 均通过；应用部署步骤按 phase 正确跳过；
+- 尚未执行 migration、seed、应用容器部署、TLS、browser smoke、旧凭证拒绝或物理 ACL 审计；下一门槛是取得新实例 RDS CA，候选 deployment 仍为 `NOT_RUN`，WP-08 未关闭，整体发布为 `NO_GO`。
 
 ## 2026-07-22 路径设计时未发生（历史快照）
 
@@ -116,4 +117,6 @@
 - 用户以“按下一步推进”授权完成 DNS 精确纳管、RDS 独占操作串行化、受保护主线复验，并在全部门禁通过后只执行一次新的 provision；该授权不包含自动重试、production 部署或新增 IAM 权限；
 - 唯一 staging workflow 新增只读 DNS 事实核验：复用项目限定的 `DNSFullAccess` 执行 `ListRecords`，按 host/type/line/TTL/status/remark/当前 ECS EIP 全字段匹配且要求唯一结果；RecordID 只在 run 内 mask 后用于同一 remote state 的精确 import/identity 核对，不落 Git、artifact、公开文档或新 secret；
 - Terraform 将 RDS 变更锁定为 `SSL → migration account → runtime account`，避免平台独占状态下并发更新；DNS 导入之后仍必须生成 saved plan，并由现有 destroy/replacement 拒绝门禁检查后才允许 apply；
-- 本节提交时只代表修复实现与本地复验，尚未触发新的 provision。合入受保护主线并通过 required check 之前，候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
+- 修复由 PR #20 合入受保护主线，required check 与主线 Candidate Gate 均通过；本地私有证据引用为 `GH_RUN_29994013611`。
+- 合入后只触发一次 `phase=provision`：run [`29994013611`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/29994013611)，workflow HEAD `af6443d9f4d3b25513c840557c9755e78758e092`；DNS import 成功，saved plan 为 `0 add / 4 change / 0 destroy`，`WP08_TERRAFORM_PLAN_GUARD=PASS`，apply 为 `0 added / 4 changed / 0 destroyed`；
+- `Prepare private deploy bundle`、镜像部署、外部 TLS 验证和 SSH 清理均按 provision phase 跳过，没有 migration、seed、容器或域名发布；当前状态为 `PROVISION_CONVERGED_RDS_CA_REQUIRED`。下一步需取得该 RDS 实例当前 CA 并写入 GitHub staging Environment；deploy 需要新的明确授权，候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。

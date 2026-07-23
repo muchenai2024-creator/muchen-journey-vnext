@@ -1,6 +1,6 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`RECONCILIATION_FIX_IN_REVIEW_PROVISION_AUTHORIZED`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。全局只读 `dns:QueryRecord` 单项策略已按授权创建并反向核验；随后唯一 run `29974201816` 的无破坏性 plan 通过，但在 RDS 独占操作并发与 DNS 已存在记录未纳管处停止，未重试。本轮已获一次新的 provision 授权，但必须先将 DNS 精确 import 与 RDS 操作串行化经受保护主线合入，所有本地/远端门禁通过后才能 dispatch，失败不得自动重试。
+状态：`PROVISION_CONVERGED_RDS_CA_REQUIRED`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。DNS 精确 import 与 RDS 串行修复已由 PR #20 通过 required check 并合入主线；随后唯一新 run `29994013611` 以 `0 add / 4 change / 0 destroy` 通过门禁并成功收敛。应用部署、migration、TLS 与 browser smoke 尚未执行；下一步必须取得本实例的 RDS CA 并安全写入 `WP08_RDS_CA_PEM_B64`，deploy 仍需新的明确授权。
 
 ## 1. 已锁定授权
 
