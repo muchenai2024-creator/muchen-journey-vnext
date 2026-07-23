@@ -198,23 +198,33 @@ def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, mo
         (
             "- provision",
             "          - deploy",
-            "WP08_PHASE: ${{ inputs.phase }}",
-            'if [[ "$WP08_PHASE" == "deploy" ]]',
             "id: terraform_init",
-            "if: always() && inputs.phase == 'deploy' && steps.terraform_init.outcome == 'success'",
-            "if: inputs.phase == 'deploy'",
-            "if: inputs.phase == 'deploy'",
-            "if: inputs.phase == 'deploy'",
-            "if: inputs.phase == 'deploy'",
-            'terraform show -json "$plan_file" | python3 ../../scripts/wp08_plan_guard.py',
+            "      - name: Reconcile the exact existing staging DNS record",
+            "        if: inputs.phase == 'provision'",
             "scripts/wp08_dns_record.py",
-            "python3 -m scripts.wp08_security_group open",
-            "python3 -m scripts.wp08_security_group close",
-            "terraform state pull | jq -er",
+            'terraform state pull | jq -er',
             'terraform import "$address" "$expected_id"',
+            "      - name: Apply reviewed infrastructure",
+            "        if: inputs.phase == 'provision'",
+            'terraform show -json "$plan_file" | python3 ../../scripts/wp08_plan_guard.py',
             'terraform apply -auto-approve "$plan_file"',
             '-var="deploy_cidr=127.0.0.1/32"',
-            "if: always() && inputs.phase == 'deploy' && steps.infrastructure.outputs.security_group_id != ''",
+            "      - name: Read frozen Alpha pilot infrastructure",
+            "        if: inputs.phase == 'deploy'",
+            "        id: frozen_infrastructure",
+            "terraform output -raw staging_public_ip",
+            "      - name: Open exact runner SSH ingress",
+            "if: inputs.phase == 'deploy'",
+            "python3 -m scripts.wp08_security_group open",
+            "      - name: Prepare private deploy bundle",
+            "if: inputs.phase == 'deploy'",
+            "      - name: Deploy exact registry digests",
+            "if: inputs.phase == 'deploy'",
+            "      - name: Verify external TLS and release surface",
+            "if: inputs.phase == 'deploy'",
+            "      - name: Close SSH ingress",
+            "if: always() && inputs.phase == 'deploy' && steps.frozen_infrastructure.outputs.security_group_id != ''",
+            "python3 -m scripts.wp08_security_group close",
         )
     )
     workflow.write_text(source)
@@ -226,6 +236,15 @@ def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, mo
 
     workflow.write_text(source.replace("scripts.wp08_security_group close", "missing"))
     with pytest.raises(staging.StagingError, match="missing bootstrap marker"):
+        staging.validate_workflow(workflow)
+
+    workflow.write_text(
+        source.replace(
+            "terraform output -raw staging_public_ip",
+            "terraform output -raw staging_public_ip\nterraform plan",
+        )
+    )
+    with pytest.raises(staging.StagingError, match="must not reconcile"):
         staging.validate_workflow(workflow)
 
 

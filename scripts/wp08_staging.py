@@ -257,10 +257,11 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
     workflow = path.read_text()
     required = (
         "- provision\n          - deploy",
-        "WP08_PHASE: ${{ inputs.phase }}",
-        'if [[ "$WP08_PHASE" == "deploy" ]]',
         "id: terraform_init",
-        "if: always() && inputs.phase == 'deploy' && steps.infrastructure.outputs.security_group_id != ''",
+        "if: inputs.phase == 'provision'",
+        "id: frozen_infrastructure",
+        "terraform output -raw staging_public_ip",
+        "if: always() && inputs.phase == 'deploy' && steps.frozen_infrastructure.outputs.security_group_id != ''",
         "terraform show -json",
         "scripts/wp08_plan_guard.py",
         "scripts/wp08_dns_record.py",
@@ -274,8 +275,10 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
     for marker in required:
         if marker not in workflow:
             raise StagingError(f"staging workflow is missing bootstrap marker: {marker}")
-    if workflow.count("if: inputs.phase == 'deploy'") != 4:
-        raise StagingError("staging workflow deploy-only step count must be exactly 4")
+    if workflow.count("if: inputs.phase == 'deploy'") != 5:
+        raise StagingError("staging workflow deploy-only step count must be exactly 5")
+    if workflow.count("if: inputs.phase == 'provision'") != 2:
+        raise StagingError("staging workflow provision-only step count must be exactly 2")
     if workflow.count("scripts/wp08_plan_guard.py") != 1:
         raise StagingError("every WP-08 apply path must have one destructive-plan guard")
     if workflow.count("scripts/wp08_dns_record.py") != 1:
@@ -296,7 +299,22 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
     apply_positions = [match.start() for match in re.finditer(r"terraform apply", workflow)]
     if len(apply_positions) != 1 or guard_positions[0] > apply_positions[0]:
         raise StagingError("WP-08 destructive-plan guard must run before every apply")
-    print("WP08_STAGING_WORKFLOW=PASS phases=provision,deploy")
+    apply_step_start = workflow.find("- name: Apply reviewed infrastructure")
+    apply_step_end = workflow.find("\n      - name:", apply_step_start + 1)
+    if apply_step_start < 0 or apply_step_end < 0:
+        raise StagingError("staging provision step is missing")
+    apply_step = workflow[apply_step_start:apply_step_end]
+    if "if: inputs.phase == 'provision'" not in apply_step:
+        raise StagingError("Terraform apply must be provision-only")
+    frozen_step_start = workflow.find("- name: Read frozen Alpha pilot infrastructure")
+    frozen_step_end = workflow.find("\n      - name:", frozen_step_start + 1)
+    if frozen_step_start < 0 or frozen_step_end < 0:
+        raise StagingError("frozen Alpha pilot state reader is missing")
+    frozen_step = workflow[frozen_step_start:frozen_step_end]
+    for forbidden in ("terraform plan", "terraform apply", "terraform import", "wp08_dns_record.py"):
+        if forbidden in frozen_step:
+            raise StagingError("Alpha pilot deploy must not reconcile infrastructure")
+    print("WP08_STAGING_WORKFLOW=PASS phases=provision,frozen-alpha-deploy")
 
 
 def command_output(*args: str) -> str:

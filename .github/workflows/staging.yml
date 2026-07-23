@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       phase:
-        description: Provision infrastructure first; deploy only after the new RDS CA is stored
+        description: Provision changes infrastructure; deploy uses frozen state only
         required: true
         type: choice
         options:
@@ -40,7 +40,6 @@ jobs:
     env:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
-      WP08_PHASE: ${{ inputs.phase }}
       VOLCENGINE_REGION: cn-beijing
       VOLCENGINE_ACCESS_KEY: ${{ secrets.VOLCENGINE_ACCESS_KEY }}
       VOLCENGINE_SECRET_KEY: ${{ secrets.VOLCENGINE_SECRET_KEY }}
@@ -100,6 +99,7 @@ jobs:
             -backend-config="skip_s3_checksum=true"
           terraform validate
       - name: Reconcile the exact existing staging DNS record
+        if: inputs.phase == 'provision'
         working-directory: infra/staging
         run: |
           public_ip=$(terraform output -raw staging_public_ip)
@@ -119,21 +119,10 @@ jobs:
           else
             terraform import "$address" "$expected_id"
           fi
-      - name: Open ephemeral deploy path and apply reviewed infrastructure
-        id: infrastructure
+      - name: Apply reviewed infrastructure
+        if: inputs.phase == 'provision'
         working-directory: infra/staging
         run: |
-          if [[ "$WP08_PHASE" == "deploy" ]]; then
-            runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\r\n')
-          else
-            runner_ip=127.0.0.1
-          fi
-          python3 - "$runner_ip" <<'PY'
-          import ipaddress
-          import sys
-          ipaddress.IPv4Address(sys.argv[1])
-          PY
-          echo "WP08_RUNNER_CIDR=$runner_ip/32" >>"$GITHUB_ENV"
           plan_error="$RUNNER_TEMP/wp08-plan-error.log"
           plan_file="$RUNNER_TEMP/wp08.tfplan"
           if ! terraform plan -out="$plan_file" -var="deploy_cidr=127.0.0.1/32" \
@@ -147,15 +136,35 @@ jobs:
           fi
           terraform show -json "$plan_file" | python3 ../../scripts/wp08_plan_guard.py
           terraform apply -auto-approve "$plan_file"
-          echo "public_ip=$(terraform output -raw staging_public_ip)" >>"$GITHUB_OUTPUT"
-          echo "security_group_id=$(terraform output -raw staging_security_group_id)" >>"$GITHUB_OUTPUT"
-          echo "rds_host=$(terraform output -raw rds_private_host)" >>"$GITHUB_OUTPUT"
-          echo "rds_port=$(terraform output -raw rds_private_port)" >>"$GITHUB_OUTPUT"
+      - name: Read frozen Alpha pilot infrastructure
+        if: inputs.phase == 'deploy'
+        id: frozen_infrastructure
+        working-directory: infra/staging
+        run: |
+          public_ip=$(terraform output -raw staging_public_ip)
+          security_group_id=$(terraform output -raw staging_security_group_id)
+          rds_host=$(terraform output -raw rds_private_host)
+          rds_port=$(terraform output -raw rds_private_port)
+          for value in "$public_ip" "$security_group_id" "$rds_host" "$rds_port"; do
+            test -n "$value"
+            echo "::add-mask::$value"
+          done
+          runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\r\n')
+          python3 - "$runner_ip" <<'PY'
+          import ipaddress
+          import sys
+          ipaddress.IPv4Address(sys.argv[1])
+          PY
+          echo "WP08_RUNNER_CIDR=$runner_ip/32" >>"$GITHUB_ENV"
+          echo "public_ip=$public_ip" >>"$GITHUB_OUTPUT"
+          echo "security_group_id=$security_group_id" >>"$GITHUB_OUTPUT"
+          echo "rds_host=$rds_host" >>"$GITHUB_OUTPUT"
+          echo "rds_port=$rds_port" >>"$GITHUB_OUTPUT"
       - name: Open exact runner SSH ingress
         if: inputs.phase == 'deploy'
         run: |
           python3 -m scripts.wp08_security_group open \
-            --security-group-id "${{ steps.infrastructure.outputs.security_group_id }}" \
+            --security-group-id "${{ steps.frozen_infrastructure.outputs.security_group_id }}" \
             --cidr "$WP08_RUNNER_CIDR"
       - name: Prepare private deploy bundle
         if: inputs.phase == 'deploy'
@@ -165,8 +174,8 @@ jobs:
           bundle="$RUNNER_TEMP/wp08-deploy"
           python3 scripts/wp08_prepare_deploy.py \
             --output "$bundle" \
-            --rds-host "${{ steps.infrastructure.outputs.rds_host }}" \
-            --rds-port "${{ steps.infrastructure.outputs.rds_port }}"
+            --rds-host "${{ steps.frozen_infrastructure.outputs.rds_host }}" \
+            --rds-port "${{ steps.frozen_infrastructure.outputs.rds_port }}"
           cp deploy/staging/compose.yaml deploy/staging/compose.migrate.yaml "$bundle/"
           cp deploy/staging/Caddyfile deploy/staging/grant_runtime.py deploy/staging/deploy.sh "$bundle/"
           chmod 0755 "$bundle/deploy.sh"
@@ -176,15 +185,21 @@ jobs:
         if: inputs.phase == 'deploy'
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLIC_IP: ${{ steps.infrastructure.outputs.public_ip }}
+          PUBLIC_IP: ${{ steps.frozen_infrastructure.outputs.public_ip }}
         run: |
           ssh_opts=(-i "$RUNNER_TEMP/wp08-deploy-key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$RUNNER_TEMP/wp08-known-hosts")
-          release="/srv/journey-next-staging/releases/${{ inputs.candidate }}"
+          release="/srv/journey-next-staging/releases/${{ inputs.candidate }}-$GITHUB_RUN_ID"
           ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "test ! -e '$release' && install -d -m 0700 '$release'"
           tar -C "$RUNNER_TEMP/wp08-deploy" -czf - . | ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "tar -xzf - -C '$release'"
+          ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "docker logout ghcr.io >/dev/null 2>&1 || true"
           printf '%s' "$GHCR_TOKEN" | ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin >/dev/null"
+          logout() {
+            ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "docker logout ghcr.io >/dev/null 2>&1 || true"
+          }
+          trap logout EXIT
           ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "cd '$release' && set -a && . ./.deployment.env && set +a && ./deploy.sh"
-          ssh "${ssh_opts[@]}" root@"$PUBLIC_IP" "docker logout ghcr.io >/dev/null"
+          logout
+          trap - EXIT
           ssh-keygen -lf "$RUNNER_TEMP/wp08-known-hosts"
       - name: Verify external TLS and release surface
         if: inputs.phase == 'deploy'
@@ -194,8 +209,8 @@ jobs:
           curl --fail --silent --show-error --retry 6 --retry-delay 5 \
             https://staging-vnext.muchenai.com/ops >/dev/null
       - name: Close SSH ingress
-        if: always() && inputs.phase == 'deploy' && steps.infrastructure.outputs.security_group_id != ''
+        if: always() && inputs.phase == 'deploy' && steps.frozen_infrastructure.outputs.security_group_id != ''
         run: |
           python3 -m scripts.wp08_security_group close \
-            --security-group-id "${{ steps.infrastructure.outputs.security_group_id }}" \
+            --security-group-id "${{ steps.frozen_infrastructure.outputs.security_group_id }}" \
             --cidr "$WP08_RUNNER_CIDR"

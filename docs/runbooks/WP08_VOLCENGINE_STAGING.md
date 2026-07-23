@@ -1,6 +1,6 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`DEPLOY_REMEDIATION_READY`。本文是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 SSH/systemd/Compose 脚本，不授权 production。Provision 已收敛且新 RDS CA 已写入 `WP08_RDS_CA_PEM_B64`。首次 deploy 因 CloudControl 更新安全组时错误序列化空 PrefixList 而安全停止；最小修复保持 Terraform 中 SSH 关闭态不变，只在同一 workflow 内用 VPC API 添加并撤销当前 runner 的单一 `/32`。应用部署、migration、TLS 与 browser smoke仍未执行。
+状态：`ALPHA_PILOT_PATH_READY`。本文仍是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 脚本，不授权 production。Provision 已收敛并冻结，新 RDS CA 已写入 `WP08_RDS_CA_PEM_B64`。应用 `deploy` 不再执行 DNS 对账、Terraform plan/apply 或 CloudControl：只从加密 remote state 读取既有 ECS/RDS 定位值，再用 VPC API 临时添加并撤销当前 runner 的单一 `/32`。migration、容器、TLS 与 browser smoke 仍未成功执行。
 
 ## 1. 已锁定授权
 
@@ -20,6 +20,7 @@
 - 新建项目与资源统一使用 `journey-next-staging-*`；禁止使用旧账号 AK/SK、旧 VPC/安全组、旧 ECS/RDS、旧 TOS bucket/prefix、旧部署脚本、旧 Sentry 项目或旧飞书应用。
 - `staging-vnext.muchenai.com` 建为独立 DNS 子区；主域 `muchenai.com` 只增加该子区的 NS 委派，不把根区凭证交给 staging CI。
 - ECS 只公开 80/443；Terraform 中 22 端口始终只接受 `127.0.0.1/32`。部署期间由同一 workflow 直接调用 VPC API 临时添加当前 GitHub runner 的单一 `/32`，`always()` 步骤按完全相同的 CIDR/协议/端口/优先级/描述撤销并反向确认；不得让 CloudControl 重写安全组嵌套集合。
+- Alpha 应用发布冻结现有基础设施：`phase=deploy` 只做 backend init、`terraform output -raw`、临时 SSH、发布包、Compose 与 TLS smoke，不运行 provider refresh、DNS import、plan 或 apply。基础设施变化只能显式使用 `phase=provision` 并继续通过 saved-plan 破坏性门禁。
 - ECS `stopped_mode` 固定为实例当前且该规格支持的 `KeepCharging`；预算按整月运行估算，不在 deploy 时尝试切换计费停止模式。
 - 每条安全组规则只声明实际使用的来源选择器；CIDR 规则不得同时传入空 `prefix_list_id` 或 `source_group_id`，否则 CloudControl 会把空 PrefixList TRN 纳入 IAM 鉴权并越出项目边界。
 - 安全组及规则描述只使用火山引擎允许的中英文、数字、空格、逗号、句号、下划线、等号和连字符；禁止分号等未支持标点。
@@ -69,13 +70,13 @@ make wp08-staging-apply-check
 
 1. `phase=provision`，candidate 输入完整 SHA，confirmation 输入 `DEPLOY_670661_TO_VOLCENGINE_STAGING`。该阶段只创建审查过的隔离基础设施，SSH 保持关闭，不准备 secret bundle、不迁移数据库、不启动应用；
 2. provision 成功且 RDS SSL 已启用后，从新建实例下载当前 CA PEM，base64 后写入 `WP08_RDS_CA_PEM_B64`。不得复用旧实例或旧服务器上的 CA；
-3. `phase=deploy`，使用相同 candidate 与 confirmation。该阶段先以关闭态收敛 Terraform，再直接添加 runner 单一 `/32`，随后执行迁移、运行时授权、合成 seed、应用部署和 TLS 验证，并在 `always()` 步骤撤销该精确规则。
+3. `phase=deploy`，使用相同 candidate 与 confirmation。该阶段只从冻结 state 读取既有 ECS/RDS 定位值，不执行 DNS、plan、apply 或 CloudControl；随后添加 runner 单一 `/32`，执行迁移、运行时授权、合成 seed、应用部署和 TLS 验证，并在 `always()` 步骤撤销该精确规则。
 
 这条 workflow 仍是唯一写入口；两阶段不改变候选、预算或环境授权边界，本地个人机器不执行 `terraform apply` 或直连部署。
 
 ## 5. 部署顺序与证据
 
-Workflow 顺序固定：provision 阶段执行合同检查 → TOS remote state init → Terraform validate → DNS 只读精确匹配与 state import/identity 核对 → Terraform saved plan → 破坏性门禁 → 关闭态 apply；deploy 阶段执行同一合同/state/DNS/关闭态 Terraform 收敛 → VPC API 临时 runner `/32` → 私有 bundle → GHCR digest pull → migration → runtime grant → PII-free seed → Web/API/Worker/edge → TLS/route → VPC API 撤销精确 SSH 规则。
+Workflow 顺序固定：provision 阶段执行合同检查 → TOS remote state init → Terraform validate → DNS 只读精确匹配与 state import/identity 核对 → Terraform saved plan → 破坏性门禁 → 关闭态 apply；Alpha deploy 阶段执行合同检查 → remote state 仅读取既有输出 → VPC API 临时 runner `/32` → 私有 bundle → GHCR digest pull → migration → runtime grant → PII-free seed → Web/API/Worker/edge → TLS/route → VPC API 撤销精确 SSH 规则。
 
 三镜像必须使用 WP-07 已核验 digest，不能只用 tag。公开证据只记录 GitHub run ID、候选 SHA、门禁结果和非敏感资源类别；账号 ID、IP、DNS zone ID、RDS/TOS endpoint、SSH fingerprint、ACL 明细和截图只进入 `evidence/private/wp08` 或 90 天受控外部证据。
 
