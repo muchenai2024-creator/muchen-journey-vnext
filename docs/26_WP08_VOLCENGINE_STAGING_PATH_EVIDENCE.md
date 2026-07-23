@@ -137,3 +137,10 @@
 - 同一 staging workflow 在关闭态 Terraform plan/apply 及破坏性门禁通过后，直接调用火山引擎 VPC API 添加当前 GitHub runner 的单一公网 `/32`；请求只包含 CIDR、TCP/22、accept、优先级和固定描述，不包含 `PrefixListId`、`SourceGroupId`，复用现有项目限定 VPC 权限；
 - `always()` 清理按完全相同的规则属性撤销，并在添加和撤销后分别调用只读安全组查询确认精确规则数量为 1 和 0；不新增 provider、长期资源、Environment secret 或 IAM 策略；
 - 本节只代表最小代码修复与本地复验，尚未触发新的 deploy。候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
+
+## 2026-07-23 最小修复后的 Deploy 尝试
+
+- PR #23 通过 required check 并合入受保护主线后，只触发一次 `phase=deploy`：run [`30006425732`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/30006425732)，没有自动重试；
+- 首次 plan 因精确 `InvalidTimestamp` 按既定合同只重签并重跑一次只读 plan；第二次得到 `0 add / 4 change / 0 destroy`，破坏性门禁通过；
+- apply 中 RDS 账号与 TOS 原地收敛成功，ECS 因 Terraform 试图把实例当前 `KeepCharging` 改为 `StopCharging` 而被 CloudControl 以枚举校验失败拒绝。临时 SSH 规则尚未添加，因此 bundle、migration、容器、TLS 与清理均未运行；
+- 月度预算本来按 ECS 整月运行估算；最小修复只把 `stopped_mode` 配置改为实例当前且该规格支持的 `KeepCharging`，不新增忽略项、权限、资源或费用假设。新的 deploy 仍需独立授权。

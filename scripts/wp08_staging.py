@@ -135,6 +135,7 @@ def validate_infrastructure() -> None:
         'PasswordAuthentication no',
         'KbdInteractiveAuthentication no',
         'PermitRootLogin prohibit-password',
+        'stopped_mode              = "KeepCharging"',
         "prevent_destroy = true",
         "depends_on = [volcenginecc_rdspostgresql_instance_ssl.staging]",
         "depends_on = [volcenginecc_rdspostgresql_db_account.migration]",
