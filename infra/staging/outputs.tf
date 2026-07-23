@@ -6,6 +6,10 @@ output "staging_public_ip" {
   value = volcenginecc_ecs_instance.app.eip_address.ip_address
 }
 
+output "staging_security_group_id" {
+  value = volcenginecc_vpc_security_group.app.security_group_id
+}
+
 output "rds_private_host" {
   value = one(flatten([
     for endpoint in volcenginecc_rdspostgresql_instance.staging.endpoints : [

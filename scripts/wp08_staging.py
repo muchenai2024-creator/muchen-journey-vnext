@@ -109,6 +109,7 @@ def validate_files() -> None:
         "deploy/staging/deploy.sh",
         "scripts/wp08_plan_guard.py",
         "scripts/wp08_dns_record.py",
+        "scripts/wp08_security_group.py",
     ]
     for relative in required:
         path = ROOT / relative
@@ -258,21 +259,23 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
         "WP08_PHASE: ${{ inputs.phase }}",
         'if [[ "$WP08_PHASE" == "deploy" ]]',
         "id: terraform_init",
-        "if: always() && inputs.phase == 'deploy' && steps.terraform_init.outcome == 'success'",
+        "if: always() && inputs.phase == 'deploy' && steps.infrastructure.outputs.security_group_id != ''",
         "terraform show -json",
         "scripts/wp08_plan_guard.py",
         "scripts/wp08_dns_record.py",
+        "scripts.wp08_security_group open",
+        "scripts.wp08_security_group close",
         'terraform import "$address" "$expected_id"',
         "terraform state pull | jq -er",
         'terraform apply -auto-approve "$plan_file"',
-        'terraform apply -auto-approve "$close_plan"',
+        '-var="deploy_cidr=127.0.0.1/32"',
     )
     for marker in required:
         if marker not in workflow:
             raise StagingError(f"staging workflow is missing bootstrap marker: {marker}")
-    if workflow.count("if: inputs.phase == 'deploy'") != 3:
-        raise StagingError("staging workflow deploy-only step count must be exactly 3")
-    if workflow.count("scripts/wp08_plan_guard.py") != 2:
+    if workflow.count("if: inputs.phase == 'deploy'") != 4:
+        raise StagingError("staging workflow deploy-only step count must be exactly 4")
+    if workflow.count("scripts/wp08_plan_guard.py") != 1:
         raise StagingError("every WP-08 apply path must have one destructive-plan guard")
     if workflow.count("scripts/wp08_dns_record.py") != 1:
         raise StagingError("WP-08 must identify the existing DNS record exactly once")
@@ -280,17 +283,17 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
         raise StagingError("WP-08 DNS reconciliation must have exactly one import path")
     if workflow.count("terraform state pull | jq -er") != 1:
         raise StagingError("WP-08 must verify the existing DNS state identity exactly once")
-    if workflow.count("-target=volcenginecc_vpc_security_group.app") != 1:
-        raise StagingError("WP-08 SSH cleanup must target only the staging security group")
+    if workflow.count("scripts.wp08_security_group") != 2:
+        raise StagingError("WP-08 must directly open and close one exact SSH rule")
+    if "-target=volcenginecc_vpc_security_group.app" in workflow:
+        raise StagingError("WP-08 must not update the nested security group rule set")
     if "terraform apply -auto-approve -var=" in workflow:
         raise StagingError("WP-08 apply must consume a reviewed and guarded saved plan")
     guard_positions = [
         match.start() for match in re.finditer(r"scripts/wp08_plan_guard\.py", workflow)
     ]
     apply_positions = [match.start() for match in re.finditer(r"terraform apply", workflow)]
-    if len(apply_positions) != 2 or any(
-        guard_positions[index] > apply_positions[index] for index in range(2)
-    ):
+    if len(apply_positions) != 1 or guard_positions[0] > apply_positions[0]:
         raise StagingError("WP-08 destructive-plan guard must run before every apply")
     print("WP08_STAGING_WORKFLOW=PASS phases=provision,deploy")
 

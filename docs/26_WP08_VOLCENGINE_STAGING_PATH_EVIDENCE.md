@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-23
-状态：`DEPLOY_STOPPED_SECURITY_GROUP_MODEL_REMEDIATION_REQUIRED`
+状态：`DEPLOY_REMEDIATION_READY`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -130,3 +130,10 @@
 - deploy 的候选合同、remote state 初始化和 DNS 精确对账均通过；saved plan 为 `0 add / 5 change / 0 destroy`，`WP08_TERRAFORM_PLAN_GUARD=PASS`。apply 在打开当前 runner 单一 `/32` 的临时 SSH 路径时停止：CloudControl 的安全组更新请求再次把空 PrefixList 引用纳入 `vpc:AuthorizeSecurityGroupIngress` 鉴权，越出项目限定资源边界；
 - 该失败与预期的项目限定 VPC 权限模型不一致，不得通过授予全局 `VPCFullAccess` 或空 PrefixList 权限绕过。后续必须修正安全组嵌套集合/provider 更新模型或改用等价的最小、可清理临时访问路径，并重新通过代码、计划和权限复验后取得新的单次 deploy 授权；
 - `Prepare private deploy bundle`、migration、镜像部署与外部 TLS 验证均被跳过；`always()` 关闭 SSH 步骤生成 `0 add / 1 change / 0 destroy` plan、再次通过破坏性门禁并成功 apply。当前未留下 runner SSH 放行，候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
+
+## 2026-07-23 最小部署通道修复
+
+- 为避免继续扩大 IAM 或重构基础设施，Terraform 中 22 端口保持 `127.0.0.1/32` 关闭态，不再用 CloudControl 更新整个安全组嵌套集合；
+- 同一 staging workflow 在关闭态 Terraform plan/apply 及破坏性门禁通过后，直接调用火山引擎 VPC API 添加当前 GitHub runner 的单一公网 `/32`；请求只包含 CIDR、TCP/22、accept、优先级和固定描述，不包含 `PrefixListId`、`SourceGroupId`，复用现有项目限定 VPC 权限；
+- `always()` 清理按完全相同的规则属性撤销，并在添加和撤销后分别调用只读安全组查询确认精确规则数量为 1 和 0；不新增 provider、长期资源、Environment secret 或 IAM 策略；
+- 本节只代表最小代码修复与本地复验，尚未触发新的 deploy。候选 deployment 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
