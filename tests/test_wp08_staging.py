@@ -189,13 +189,37 @@ def test_infrastructure_rejects_unreviewed_ignore_set_and_mutable_allowlist_bind
         staging.validate_infrastructure()
 
 
-def test_deploy_requires_release_local_secrets(tmp_path: Path):
+def test_deploy_requires_release_local_secrets_and_safe_preflight(tmp_path: Path):
     script = tmp_path / "deploy.sh"
-    script.write_text('SECRETS="$PWD/secrets"\n')
+    valid = (
+        "\n".join(
+            (
+                'SECRETS="$PWD/secrets"',
+                "docker compose -f compose.yaml -f compose.migrate.yaml config --quiet",
+                "docker compose pull",
+                "docker compose -f compose.yaml -f compose.migrate.yaml "
+                "run --rm --no-deps api alembic upgrade head",
+            )
+        )
+    )
+    script.write_text(valid)
     staging.validate_deploy_script(script)
 
     script.write_text('SECRETS="$ROOT/secrets"\n')
     with pytest.raises(staging.StagingError, match="release-local"):
+        staging.validate_deploy_script(script)
+
+    script.write_text(
+        valid.replace(
+            "docker compose pull\n"
+            "docker compose -f compose.yaml -f compose.migrate.yaml "
+            "run --rm --no-deps api alembic upgrade head",
+            "docker compose -f compose.yaml -f compose.migrate.yaml "
+            "run --rm --no-deps api alembic upgrade head\n"
+            "docker compose pull",
+        )
+    )
+    with pytest.raises(staging.StagingError, match="before database migration"):
         staging.validate_deploy_script(script)
 
 

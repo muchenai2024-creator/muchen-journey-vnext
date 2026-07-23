@@ -128,6 +128,21 @@ def validate_deploy_script(path: Path = DEPLOY_SCRIPT) -> None:
         raise StagingError("staging deploy must read release-local secrets")
     if 'SECRETS="$ROOT/secrets"' in script:
         raise StagingError("staging deploy must not read the obsolete global secret path")
+    compose_check = (
+        "docker compose -f compose.yaml -f compose.migrate.yaml config --quiet"
+    )
+    image_pull = "docker compose pull"
+    migration = (
+        "docker compose -f compose.yaml -f compose.migrate.yaml "
+        "run --rm --no-deps api alembic upgrade head"
+    )
+    if any(command not in script for command in (compose_check, image_pull, migration)):
+        raise StagingError("staging deploy preflight commands are incomplete")
+    if not script.index(compose_check) < script.index(image_pull) < script.index(migration):
+        raise StagingError(
+            "staging deploy must validate Compose and pull all images "
+            "before database migration"
+        )
 
 
 def validate_infrastructure() -> None:

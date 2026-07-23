@@ -38,6 +38,9 @@ grep -qx 'APP_ENV=staging' "$SECRETS/worker.env" || fail "Worker must run as sta
 grep -qx 'NOTIFICATION_ADAPTER=DISABLED' "$SECRETS/worker.env" || fail "WP-08 worker must not use LOCAL_TEST or a real external adapter"
 ! grep -R -E 'journey\.muchenai\.com|muchen-journey-production|LOCAL_TEST' "$SECRETS"/*.env >/dev/null || fail "legacy or local-only configuration found"
 
+docker compose -f compose.yaml -f compose.migrate.yaml config --quiet
+docker compose pull
+
 previous=""
 if [[ -L "$ROOT/current" ]]; then
   previous=$(readlink -f "$ROOT/current")
@@ -56,7 +59,6 @@ trap rollback ERR
 docker compose -f compose.yaml -f compose.migrate.yaml run --rm --no-deps api alembic upgrade head
 docker compose -f compose.yaml -f compose.migrate.yaml run --rm --no-deps api python /tmp/grant_runtime.py
 docker compose -f compose.yaml -f compose.migrate.yaml run --rm --no-deps api python -m journey_api.seed
-docker compose pull
 docker compose up -d --remove-orphans --wait
 
 api_health=$(docker compose exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health/ready', timeout=3).read().decode())")
