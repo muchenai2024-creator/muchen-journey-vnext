@@ -99,6 +99,26 @@ jobs:
             -backend-config="skip_requesting_account_id=true" \
             -backend-config="skip_s3_checksum=true"
           terraform validate
+      - name: Reconcile the exact existing staging DNS record
+        working-directory: infra/staging
+        run: |
+          public_ip=$(terraform output -raw staging_public_ip)
+          record_id=$(python3 ../../scripts/wp08_dns_record.py \
+            --zone-id "$TF_VAR_dns_zone_id" \
+            --expected-value "$public_ip")
+          echo "::add-mask::$record_id"
+          address=volcenginecc_dns_record.staging
+          expected_id="$TF_VAR_dns_zone_id|$record_id"
+          if terraform state list | grep -Fxq "$address"; then
+            state_id=$(terraform state pull | jq -er '
+              .resources[] |
+              select(.mode == "managed" and .type == "volcenginecc_dns_record" and .name == "staging") |
+              if (.instances | length) == 1 then .instances[0].attributes.id else empty end
+            ')
+            test "$state_id" = "$expected_id"
+          else
+            terraform import "$address" "$expected_id"
+          fi
       - name: Open ephemeral deploy path and apply reviewed infrastructure
         id: infrastructure
         working-directory: infra/staging

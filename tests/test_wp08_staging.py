@@ -46,6 +46,14 @@ def infrastructure_files(tmp_path: Path) -> tuple[Path, Path]:
                 'ignore_changes = [security_group_bind_infos]',
                 '}',
                 '}',
+                'resource "volcenginecc_rdspostgresql_instance_ssl" "staging" {',
+                '}',
+                'resource "volcenginecc_rdspostgresql_db_account" "migration" {',
+                'depends_on = [volcenginecc_rdspostgresql_instance_ssl.staging]',
+                '}',
+                'resource "volcenginecc_rdspostgresql_db_account" "runtime" {',
+                'depends_on = [volcenginecc_rdspostgresql_db_account.migration]',
+                '}',
                 'resource "volcenginecc_ecs_instance" "app" {',
                 'password                  = random_password.ecs_bootstrap.result',
                 'PasswordAuthentication no',
@@ -197,6 +205,9 @@ def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, mo
             "if: inputs.phase == 'deploy'",
             "if: inputs.phase == 'deploy'",
             'terraform show -json "$plan_file" | python3 ../../scripts/wp08_plan_guard.py',
+            "scripts/wp08_dns_record.py",
+            "terraform state pull | jq -er",
+            'terraform import "$address" "$expected_id"',
             'terraform apply -auto-approve "$plan_file"',
             "-target=volcenginecc_vpc_security_group.app",
             'terraform show -json "$close_plan" | python3 ../../scripts/wp08_plan_guard.py',
@@ -213,3 +224,28 @@ def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, mo
     workflow.write_text(source.replace("-target=volcenginecc_vpc_security_group.app", ""))
     with pytest.raises(staging.StagingError, match="target only the staging security group"):
         staging.validate_workflow(workflow)
+
+
+def test_infrastructure_requires_serial_rds_exclusive_operations(
+    tmp_path: Path, monkeypatch
+):
+    versions, main = infrastructure_files(tmp_path)
+    monkeypatch.setattr(staging, "INFRA_VERSIONS", versions)
+    monkeypatch.setattr(staging, "INFRA_MAIN", main)
+    source = main.read_text()
+
+    main.write_text(
+        source.replace(
+            "depends_on = [volcenginecc_rdspostgresql_instance_ssl.staging]", ""
+        )
+    )
+    with pytest.raises(staging.StagingError, match="bootstrap marker"):
+        staging.validate_infrastructure()
+
+    main.write_text(
+        source.replace(
+            "depends_on = [volcenginecc_rdspostgresql_db_account.migration]", ""
+        )
+    )
+    with pytest.raises(staging.StagingError, match="bootstrap marker"):
+        staging.validate_infrastructure()
