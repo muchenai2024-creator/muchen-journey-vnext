@@ -116,7 +116,9 @@ def api_request(
 
 
 def exact_rule_count(payload: dict[str, object], cidr: str) -> int:
-    permissions = payload.get("Permissions", [])
+    permissions = payload.get("Permissions")
+    if permissions is None:
+        return 0
     if not isinstance(permissions, list):
         raise SecurityGroupError("VPC API permissions are invalid")
     count = 0
