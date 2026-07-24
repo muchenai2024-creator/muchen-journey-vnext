@@ -27,6 +27,7 @@
 - 安全组及规则描述只使用火山引擎允许的中英文、数字、空格、逗号、句号、下划线、等号和连字符；禁止分号等未支持标点。
 - 自定义安全组创建时平台会自动加入允许 `0.0.0.0/0`、ALL 协议/端口的默认出站规则；Terraform 不得重复声明同一规则，否则 CloudControl 以 `InvalidSecurityRule.Conflict` 拒绝。出站收敛继续由主机 denylist 与隔离复验负责。
 - RDS 只绑定 staging ECS 安全组，无公网地址；`AssociateEcsIp` 绑定不得配置 `ip_list`，且 AllowList 必须等 ECS 主网卡加入该安全组后才能创建。`volcenginecc` 0.0.57 会在更新既有 `SetNestedAttribute` 时把 computed `IpList` 序列化为空值，因此该嵌套绑定仅在创建时配置，后续由精确 `ignore_changes = [security_group_bind_infos]` 保持不可变；安全组本身继续由 Terraform 管理。既有 AllowList 是否已导入 ECS 私网 IP 必须从控制面只读核验，不能由 Terraform 依赖关系倒推。`journey_next_migrator` 拥有 schema，`journey_next_runtime` 禁止 DDL，只获 DML/sequence 权限；强制 TLS。
+- 若只读 audit 返回 `RDS security-group IP list is missing`，停止 deploy；只允许在当轮精确授权后对同一 AllowList 执行一次控制台“同步安全组”，不得新建/删除 AllowList、手工扩大 CIDR、改安全组或运行 provision。同步后先运行 `phase=audit`，只有 `allowlist_match=true`、`instance_association=true`、`vpc_match=true`、`allowlist_latest=true` 全部通过，才可另行申请新的 deploy 授权。
 - RDS SSL 启用与 DBAccount 更新都会让实例进入独占操作状态，Terraform 必须显式串行这些资源，禁止并发提交；若平台返回 `instance is in exclusive status`，保留 partial state 并停止，不能自动重试。
 - DNS API 返回 `AlreadyExists` 时，先只读核验记录内容与归属，再把唯一目标记录精确 import 到同一 remote state；禁止先删记录、扩大 DNS 权限或用第二条部署路径绕过。
 - DNS 精确纳管固定使用项目限定的 `dns:ListRecords` 读取现有子区：同时匹配 `@`、A、默认线路、TTL 600、已启用、`vNext staging` 备注和当前 ECS EIP，必须且只能得到一个 RecordID。RecordID 先加入 Actions mask，只用于同一 workflow 的 `terraform import`；不得写入 Git、artifact、公开证据或新增 Environment secret。已有 state 地址则必须核对完整 import identity，不允许覆盖或重绑。
