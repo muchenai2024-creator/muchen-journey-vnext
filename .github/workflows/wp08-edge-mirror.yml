@@ -1,0 +1,46 @@
+name: WP-08 Edge Mirror
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type MIRROR_CADDY_2_10_2_TO_GHCR
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: wp08-edge-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: WP-08 / mirror fixed Caddy image
+    if: inputs.confirmation == 'MIRROR_CADDY_2_10_2_TO_GHCR'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Mirror and verify fixed Caddy image
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d"
+          target="ghcr.io/muchenai2024-creator/muchen-journey-vnext-edge:caddy-2.10.2-alpine-4c6e91c6ed0e"
+          docker pull "$source"
+          source_id=$(docker image inspect "$source" --format '{{.Id}}')
+          test -n "$source_id"
+          docker tag "$source_id" "$target"
+          docker push "$target"
+          digest=$(docker buildx imagetools inspect "$target" --raw | sha256sum | awk '{print "sha256:" $1}')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          docker buildx imagetools inspect "$target@$digest" >/dev/null
+          printf 'WP08_EDGE_MIRROR=PASS reference=%s@%s\n' "$target" "$digest"
