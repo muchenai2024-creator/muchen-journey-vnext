@@ -42,6 +42,7 @@ def infrastructure_files(tmp_path: Path) -> tuple[Path, Path]:
                 'security_group_id = "sg-reviewed"',
                 'security_group_name = "journey-next-staging-app"',
                 '}]',
+                'depends_on = [volcenginecc_ecs_instance.app]',
                 'lifecycle {',
                 'ignore_changes = [security_group_bind_infos]',
                 '}',
@@ -186,6 +187,10 @@ def test_infrastructure_rejects_unreviewed_ignore_set_and_mutable_allowlist_bind
 
     main.write_text(source.replace("ignore_changes = [security_group_bind_infos]", ""))
     with pytest.raises(staging.StagingError, match="must be immutable after creation"):
+        staging.validate_infrastructure()
+
+    main.write_text(source.replace("depends_on = [volcenginecc_ecs_instance.app]", ""))
+    with pytest.raises(staging.StagingError, match="security-group attachment"):
         staging.validate_infrastructure()
 
 
