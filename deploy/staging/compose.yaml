@@ -64,7 +64,7 @@ services:
 
   edge:
     <<: *common
-    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    image: ghcr.io/muchenai2024-creator/muchen-journey-vnext-edge@sha256:b7c239fee65c44ac1dccfa76f88253f87e4d7a8ca27b92e419c86a967ecff171
     env_file:
       - secrets/edge.env
     ports:

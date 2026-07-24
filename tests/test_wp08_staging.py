@@ -244,6 +244,18 @@ def test_edge_mirror_workflow_is_manual_and_digest_pinned(tmp_path: Path):
         staging.validate_edge_mirror_workflow(workflow)
 
 
+def test_staging_edge_uses_verified_project_ghcr_digest(tmp_path: Path):
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(f"services:\n  edge:\n    image: {staging.EDGE_IMAGE}\n")
+    staging.validate_staging_compose(compose)
+
+    compose.write_text(
+        "services:\n  edge:\n    image: caddy:2.10.2-alpine@sha256:" + "a" * 64 + "\n"
+    )
+    with pytest.raises(staging.StagingError, match="project GHCR digest"):
+        staging.validate_staging_compose(compose)
+
+
 def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, monkeypatch):
     versions, main = infrastructure_files(tmp_path)
     monkeypatch.setattr(staging, "INFRA_VERSIONS", versions)

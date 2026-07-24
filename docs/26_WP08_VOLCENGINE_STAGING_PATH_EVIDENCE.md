@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-24
-状态：`ALPHA_PILOT_REGISTRY_EGRESS_BLOCKED`
+状态：`ALPHA_PILOT_EDGE_MIRROR_READY`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -170,3 +170,10 @@
 - 预迁移 `docker compose pull` 在解析 Docker Hub 上固定 Caddy digest 时因 HTTPS 连接超时失败。该失败不是候选 GHCR 三镜像、IAM、CloudControl、RDS 或应用运行错误；
 - 日志未观察到 migration、runtime grant、seed、容器启动或部署成功标记；外部 TLS 验证被跳过。`always()` 步骤输出 `WP08_SSH_INGRESS=CLOSED`，run 终态为 failure，随后没有活动 staging run；
 - 本次授权已消费且没有重试。状态保持 `ALPHA_PILOT_REGISTRY_EGRESS_BLOCKED`，候选 deployment、真实身份和真人 UAT继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
+
+## 2026-07-24 项目 GHCR Edge Mirror
+
+- PR #30 以手动触发、固定确认词和 `packages: write` 最小权限加入受控 mirror；源固定为 Caddy 2.10.2 Alpine 的既定 Docker Hub digest，工作流本身不修改 staging 或云资源；
+- 主线 `96368ca97b2a975d781fb35f7a036593f69d9944` 的 Candidate Gate run `30063177897` 通过后，只执行一次 mirror run [`30063385826`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/30063385826)；
+- GHCR 推送与 `target@digest` 回读验证均通过，目标固定为 `ghcr.io/muchenai2024-creator/muchen-journey-vnext-edge@sha256:b7c239fee65c44ac1dccfa76f88253f87e4d7a8ca27b92e419c86a967ecff171`；staging Compose 不再依赖 Docker Hub Caddy；
+- 本节仅关闭已知 edge registry egress 阻塞。新的候选 deployment、migration、容器、TLS、真实身份和真人 UAT 仍为 `NOT_RUN`，整体发布继续为 `NO_GO`。
