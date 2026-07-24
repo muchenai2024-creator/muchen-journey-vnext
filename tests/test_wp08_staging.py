@@ -223,6 +223,27 @@ def test_deploy_requires_release_local_secrets_and_safe_preflight(tmp_path: Path
         staging.validate_deploy_script(script)
 
 
+def test_edge_mirror_workflow_is_manual_and_digest_pinned(tmp_path: Path):
+    workflow = tmp_path / "edge-mirror.yml"
+    source = "\n".join(
+        (
+            "workflow_dispatch:",
+            "packages: write",
+            "inputs.confirmation == 'MIRROR_CADDY_2_10_2_TO_GHCR'",
+            "docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121",
+            "docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+            "ghcr.io/muchenai2024-creator/muchen-journey-vnext-edge:caddy-2.10.2-alpine-4c6e91c6ed0e",
+            'docker buildx imagetools inspect "$target@$digest"',
+        )
+    )
+    workflow.write_text(source)
+    staging.validate_edge_mirror_workflow(workflow)
+
+    workflow.write_text(source.replace("workflow_dispatch:", "push:"))
+    with pytest.raises(staging.StagingError, match="incomplete"):
+        staging.validate_edge_mirror_workflow(workflow)
+
+
 def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, monkeypatch):
     versions, main = infrastructure_files(tmp_path)
     monkeypatch.setattr(staging, "INFRA_VERSIONS", versions)

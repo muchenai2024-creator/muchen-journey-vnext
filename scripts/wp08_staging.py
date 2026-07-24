@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "config" / "wp08_staging.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "staging.yml"
+EDGE_MIRROR_WORKFLOW = ROOT / ".github" / "workflows" / "wp08-edge-mirror.yml"
 INFRA_MAIN = ROOT / "infra" / "staging" / "main.tf"
 INFRA_VERSIONS = ROOT / "infra" / "staging" / "versions.tf"
 DEPLOY_SCRIPT = ROOT / "deploy" / "staging" / "deploy.sh"
@@ -111,6 +112,7 @@ def validate_files() -> None:
         "scripts/wp08_plan_guard.py",
         "scripts/wp08_dns_record.py",
         "scripts/wp08_security_group.py",
+        ".github/workflows/wp08-edge-mirror.yml",
     ]
     for relative in required:
         path = ROOT / relative
@@ -120,6 +122,23 @@ def validate_files() -> None:
     if mode != 0o755:
         raise StagingError("deploy/staging/deploy.sh must be mode 0755")
     validate_deploy_script()
+
+
+def validate_edge_mirror_workflow(path: Path = EDGE_MIRROR_WORKFLOW) -> None:
+    workflow = path.read_text()
+    required = (
+        "workflow_dispatch:",
+        "packages: write",
+        "inputs.confirmation == 'MIRROR_CADDY_2_10_2_TO_GHCR'",
+        "docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121",
+        "docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+        "ghcr.io/muchenai2024-creator/muchen-journey-vnext-edge:caddy-2.10.2-alpine-4c6e91c6ed0e",
+        'docker buildx imagetools inspect "$target@$digest"',
+    )
+    if any(marker not in workflow for marker in required):
+        raise StagingError("WP-08 edge mirror workflow is incomplete")
+    if "\n  push:" in workflow or "\n  pull_request:" in workflow:
+        raise StagingError("WP-08 edge mirror must be manual only")
 
 
 def validate_deploy_script(path: Path = DEPLOY_SCRIPT) -> None:
@@ -397,6 +416,7 @@ def main() -> None:
             check(args.phase)
         elif args.command == "workflow-check":
             validate_workflow()
+            validate_edge_mirror_workflow()
         else:
             record_evidence(args.status, args.reference)
     except (OSError, ValueError, json.JSONDecodeError, subprocess.CalledProcessError, StagingError) as error:
