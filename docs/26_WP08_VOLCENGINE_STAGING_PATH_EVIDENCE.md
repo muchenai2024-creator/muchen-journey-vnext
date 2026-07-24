@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-24
-状态：`ALPHA_PILOT_EDGE_MIRROR_READY`
+状态：`ALPHA_PILOT_RDS_CONNECTIVITY_BLOCKED`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -177,3 +177,11 @@
 - 主线 `96368ca97b2a975d781fb35f7a036593f69d9944` 的 Candidate Gate run `30063177897` 通过后，只执行一次 mirror run [`30063385826`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/30063385826)；
 - GHCR 推送与 `target@digest` 回读验证均通过，目标固定为 `ghcr.io/muchenai2024-creator/muchen-journey-vnext-edge@sha256:b7c239fee65c44ac1dccfa76f88253f87e4d7a8ca27b92e419c86a967ecff171`；staging Compose 不再依赖 Docker Hub Caddy；
 - 本节仅关闭已知 edge registry egress 阻塞。新的候选 deployment、migration、容器、TLS、真实身份和真人 UAT 仍为 `NOT_RUN`，整体发布继续为 `NO_GO`。
+
+## 2026-07-24 GHCR 修复后的唯一 Deploy
+
+- PR #31 把 staging Compose 固定到已验证的项目 GHCR edge digest，并加入拒绝 Docker Hub Caddy 的机器合同；required check 和主线 `93635e336bb47836a8326068df84ff113253a748` 的 Candidate Gate run `30063625181` 均通过；
+- 部署前候选 `670661865f708a835997596ed5b74904809564a5`、预算、冻结 state 路径、Environment secret/变量名称、成功 provision 与无活动 staging run 均已复验；随后只触发一次 `phase=deploy`：run [`30063847635`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/30063847635)，没有重试；
+- DNS reconcile 与 Terraform plan/apply 按 deploy phase 跳过。四个 GHCR 镜像全部拉取成功，已知 Docker Hub 阻塞关闭；Compose 创建了 release network 和空附件 volume，随后第一次 Alembic 连接 RDS 即以 `psycopg ConnectionTimeout` 停止；
+- 未观察到 migration 执行、runtime grant、seed、应用容器启动、部署成功标记、TLS 或 browser smoke。本次 release 目录、缓存镜像、Compose network 和空附件 volume 可能保留在 ECS，清理或复用需要新的受控操作；
+- `always()` 清理输出 `WP08_SSH_INGRESS=CLOSED`，运行后没有活动 staging run。当前必须先只读核验 ECS 与 RDS 的 VPC/子网、私网 endpoint、有效 AllowList/安全组绑定及 TCP 5432 路径；不得把连接超时误判为凭据或 TLS 错误，也不得自动重试 deploy。真实身份、真人 UAT 与 WP-09 继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
