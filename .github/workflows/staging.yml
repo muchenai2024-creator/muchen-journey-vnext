@@ -8,6 +8,7 @@ on:
         required: true
         type: choice
         options:
+          - audit
           - provision
           - deploy
       candidate:
@@ -15,7 +16,7 @@ on:
         required: true
         type: string
       confirmation:
-        description: Type DEPLOY_670661_TO_VOLCENGINE_STAGING
+        description: Type AUDIT_WP08_RDS_NETWORK or DEPLOY_670661_TO_VOLCENGINE_STAGING
         required: true
         type: string
 
@@ -33,7 +34,8 @@ jobs:
     name: WP-08 / physical staging
     if: >-
       inputs.candidate == '670661865f708a835997596ed5b74904809564a5' &&
-      inputs.confirmation == 'DEPLOY_670661_TO_VOLCENGINE_STAGING'
+      ((inputs.phase == 'audit' && inputs.confirmation == 'AUDIT_WP08_RDS_NETWORK') ||
+      (inputs.phase != 'audit' && inputs.confirmation == 'DEPLOY_670661_TO_VOLCENGINE_STAGING'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: staging
@@ -98,6 +100,15 @@ jobs:
             -backend-config="skip_requesting_account_id=true" \
             -backend-config="skip_s3_checksum=true"
           terraform validate
+      - name: Audit frozen ECS to RDS allowlist binding
+        if: inputs.phase == 'audit'
+        working-directory: infra/staging
+        run: |
+          umask 077
+          state_file="$RUNNER_TEMP/wp08-state.json"
+          trap 'rm -f "$state_file"' EXIT
+          terraform state pull >"$state_file"
+          python3 ../../scripts/wp08_rds_network_audit.py --state "$state_file"
       - name: Reconcile the exact existing staging DNS record
         if: inputs.phase == 'provision'
         working-directory: infra/staging

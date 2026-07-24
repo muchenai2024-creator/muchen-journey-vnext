@@ -50,16 +50,23 @@ def signed_headers(
     *,
     service: str = API_SERVICE,
     region: str = API_REGION,
+    host: str = API_HOST,
+    method: str = "GET",
+    body: bytes = b"",
+    content_type: str = "",
     now: datetime | None = None,
     session_token: str = "",
 ) -> dict[str, str]:
     timestamp = (now or datetime.now(timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
     date = timestamp[:8]
+    body_sha256 = hashlib.sha256(body).hexdigest()
     headers = {
-        "Host": API_HOST,
-        "X-Content-Sha256": EMPTY_SHA256,
+        "Host": host,
+        "X-Content-Sha256": body_sha256,
         "X-Date": timestamp,
     }
+    if content_type:
+        headers["Content-Type"] = content_type
     if session_token:
         headers["X-Security-Token"] = session_token
     normalized_headers = {key.lower(): value for key, value in headers.items()}
@@ -70,12 +77,12 @@ def signed_headers(
     signed_names = ";".join(names)
     canonical_request = "\n".join(
         (
-            "GET",
+            method,
             "/",
             canonical_query(parameters),
             canonical_headers,
             signed_names,
-            EMPTY_SHA256,
+            body_sha256,
         )
     )
     scope = f"{date}/{region}/{service}/request"
