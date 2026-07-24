@@ -23,6 +23,10 @@
 - 第三次 provision run `29974201816` 失败后没有自动重试；DNS state 精确纳管与 RDS 串行修复已由 PR #20 通过 required check 并合入主线 `af6443d9f4d3b25513c840557c9755e78758e092`，没有扩大 IAM；
 - 本轮唯一新 provision run `29994013611` 已成功：DNS 精确 import、`0 add / 4 change / 0 destroy` saved plan、无破坏性门禁和 apply 均通过；应用部署步骤按 phase 正确跳过；
 - 新实例 RDS CA 已取得并写入 GitHub `staging` Environment；Alpha deploy 已移除 DNS/provider/plan/apply 耦合。run `30062128087` 使用已修复路径通过冻结 state、精确 runner `/32`、私有 bundle、release-local secret 与 Compose 校验，但 ECS 访问 Docker Hub 拉取固定 Caddy digest 时以网络超时停止；全镜像 pull 位于 migration 前，因此未观察到 migration、seed 或容器启动。TLS/browser smoke 被跳过，SSH 已确认关闭且未重试；真实身份和真人 UAT 仍为 `NOT_RUN`，整体发布为 `NO_GO`。
+- mirror run `30063385826` 已将固定 Caddy 2.10.2 源 digest 复制到项目 GHCR；PR #31 把 Compose 固定到验证后的项目 digest。唯一后续 deploy run `30063847635` 已成功拉取四个 GHCR 镜像，但 Alembic 首次连接 RDS 时超时；migration 未开始，runtime grant、seed、应用、TLS 与浏览器 smoke 均未运行，SSH 已关闭且没有重试。
+- PR #33 已修复 Terraform 创建图，使 RDS AllowList 必须等待 ECS 主网卡加入目标安全组；该修复只防止新环境复发，不能倒推既有 AllowList 已同步。PR #34 在唯一 staging workflow 增加脱敏 `phase=audit`，PR #35 修复其 runner 模块入口；两者均通过 required check 和主线门禁。
+- 首次 audit run `30066549563` 在任何火山引擎 API 调用前因 Python 模块入口不可解析而停止，没有产生云状态证据或外部写入。修复后的只读 run `30066942906` 成功读取冻结 remote state 并调用北京地域 `DescribeAllowListDetail`：目标 AllowList ID 和 `AssociateEcsIp` 安全组绑定均匹配，但其有效 `IpList` 缺失，因此 fail closed。run 未执行 provider refresh、plan、apply、import、SSH 规则变更、数据库连接或部署，也未输出 IP、资源 ID 或 secret。
+- 该缺口与 AllowList 先于 ECS 成员创建的历史竞态一致，并能解释 migration 连接超时；但同步后的数据库/TLS/应用结果仍未知。唯一下一动作是对现有 AllowList 执行一次原生“同步安全组”，范围只刷新当前绑定的 ECS 主网卡 IP；该云端写入必须取得当轮精确授权。同步后先重跑只读 audit，不直接部署。
 
 ## 2026-07-22 路径设计时未发生（历史快照）
 
