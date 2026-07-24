@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-24
-状态：`ALPHA_PILOT_RDS_CONNECTIVITY_BLOCKED`
+状态：`ALPHA_PILOT_RDS_INSTANCE_SYNC_UNVERIFIED`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -26,7 +26,10 @@
 - mirror run `30063385826` 已将固定 Caddy 2.10.2 源 digest 复制到项目 GHCR；PR #31 把 Compose 固定到验证后的项目 digest。唯一后续 deploy run `30063847635` 已成功拉取四个 GHCR 镜像，但 Alembic 首次连接 RDS 时超时；migration 未开始，runtime grant、seed、应用、TLS 与浏览器 smoke 均未运行，SSH 已关闭且没有重试。
 - PR #33 已修复 Terraform 创建图，使 RDS AllowList 必须等待 ECS 主网卡加入目标安全组；该修复只防止新环境复发，不能倒推既有 AllowList 已同步。PR #34 在唯一 staging workflow 增加脱敏 `phase=audit`，PR #35 修复其 runner 模块入口；两者均通过 required check 和主线门禁。
 - 首次 audit run `30066549563` 在任何火山引擎 API 调用前因 Python 模块入口不可解析而停止，没有产生云状态证据或外部写入。修复后的只读 run `30066942906` 成功读取冻结 remote state 并调用北京地域 `DescribeAllowListDetail`：目标 AllowList ID 和 `AssociateEcsIp` 安全组绑定均匹配，但其有效 `IpList` 缺失，因此 fail closed。run 未执行 provider refresh、plan、apply、import、SSH 规则变更、数据库连接或部署，也未输出 IP、资源 ID 或 secret。
-- 该缺口与 AllowList 先于 ECS 成员创建的历史竞态一致，并能解释 migration 连接超时；但同步后的数据库/TLS/应用结果仍未知。唯一下一动作是对现有 AllowList 执行一次原生“同步安全组”，范围只刷新当前绑定的 ECS 主网卡 IP；该云端写入必须取得当轮精确授权。同步后先重跑只读 audit，不直接部署。
+- 该缺口与 AllowList 先于 ECS 成员创建的历史竞态一致，并能解释 migration 连接超时；但同步后的数据库/TLS/应用结果当时仍未知。当时唯一下一动作是对现有 AllowList 执行一次原生“同步安全组”，范围只刷新当前绑定的 ECS 主网卡 IP；该云端写入必须取得当轮精确授权。同步后先重跑只读 audit，不直接部署。
+- 用户精确授权后，主任务已在华北2（北京）对同一 AllowList 执行一次控制台“同步安全组”。控制台差异只把当前安全组关联 ECS 的主网卡 IP 纳入既有绑定，没有新增/删除 AllowList、实例、安全组或网络规则；同步后的只读详情已显示相同安全组、相同 `AssociateEcsIp` 模式和非空派生 IP。
+- 随后唯一只读 audit run `30067829879` 读取同一冻结 state；AllowList、安全组绑定、派生 IP、实例关联和 VPC 均已匹配，但 `AssociatedInstances[].IsLatest=false`，因此仍 fail closed。DNS、Terraform apply、SSH、数据库与 deploy 全部跳过，没有重试。火山引擎把“同步安全组”定义为取得最新安全组 IP，并用 `IsLatest` 表示最新白名单是否已同步到实例；这说明 IP 缺口已关闭，但实例侧传播尚未被证实，不能据此部署。
+- 现有 audit 只在控制台确认后的数秒内读取一次详情，不能区分异步传播窗口和持续失败。后续实现保留 `IsLatest=true` 硬门禁，同时在**同一次只读 audit** 内最多轮询 60 秒；任一结构、身份、IP、VPC 不一致立即失败，只有单独的 `IsLatest=false` 可等待，窗口耗尽仍失败。该修复不调用同步 API、不改变云资源，也不构成新的 audit 或 deploy 授权。官方参考：[同步安全组](https://docs.volcengine.com/docs/6438/1742797?lang=zh)、[DescribeAllowListDetail](https://docs.volcengine.com/docs/6438/1257389?lang=zh)。
 
 ## 2026-07-22 路径设计时未发生（历史快照）
 
