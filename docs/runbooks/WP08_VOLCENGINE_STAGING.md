@@ -1,6 +1,6 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`ALPHA_PILOT_REGISTRY_EGRESS_BLOCKED`。本文仍是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 脚本，不授权 production。Provision 已收敛并冻结，新 RDS CA 已写入 `WP08_RDS_CA_PEM_B64`。应用 `deploy` 不执行 DNS 对账、Terraform plan/apply 或 CloudControl：只从加密 remote state 读取既有 ECS/RDS 定位值，再用 VPC API 临时添加并撤销当前 runner 的单一 `/32`。run `30062128087` 已通过 release-local secret 与 Compose 校验，但在 migration 前因 ECS 访问 Docker Hub 拉取固定 Caddy digest 超时停止；SSH 已关闭且未重试。migration、容器、TLS 与 browser smoke 仍未成功执行。
+状态：`ALPHA_PILOT_EDGE_MIRROR_READY`。本文仍是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 脚本，不授权 production。Provision 已收敛并冻结，新 RDS CA 已写入 `WP08_RDS_CA_PEM_B64`。应用 `deploy` 不执行 DNS 对账、Terraform plan/apply 或 CloudControl：只从加密 remote state 读取既有 ECS/RDS 定位值，再用 VPC API 临时添加并撤销当前 runner 的单一 `/32`。run `30062128087` 因 ECS 访问 Docker Hub 超时而在 migration 前停止；随后受控 mirror run `30063385826` 已把固定 Caddy 2.10.2 源 digest 复制到项目 GHCR，并验证目标 digest `sha256:b7c239fee65c44ac1dccfa76f88253f87e4d7a8ca27b92e419c86a967ecff171`。Compose 现直接固定该 GHCR digest。新的 deployment、migration、容器、TLS 与 browser smoke 仍为 `NOT_RUN`。
 
 ## 1. 已锁定授权
 

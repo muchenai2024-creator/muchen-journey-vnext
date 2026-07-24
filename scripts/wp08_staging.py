@@ -22,8 +22,13 @@ EDGE_MIRROR_WORKFLOW = ROOT / ".github" / "workflows" / "wp08-edge-mirror.yml"
 INFRA_MAIN = ROOT / "infra" / "staging" / "main.tf"
 INFRA_VERSIONS = ROOT / "infra" / "staging" / "versions.tf"
 DEPLOY_SCRIPT = ROOT / "deploy" / "staging" / "deploy.sh"
+STAGING_COMPOSE = ROOT / "deploy" / "staging" / "compose.yaml"
 PRIVATE_EVIDENCE = ROOT / "evidence" / "private" / "wp08"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+EDGE_IMAGE = (
+    "ghcr.io/muchenai2024-creator/muchen-journey-vnext-edge@"
+    "sha256:b7c239fee65c44ac1dccfa76f88253f87e4d7a8ca27b92e419c86a967ecff171"
+)
 
 
 class StagingError(RuntimeError):
@@ -122,6 +127,7 @@ def validate_files() -> None:
     if mode != 0o755:
         raise StagingError("deploy/staging/deploy.sh must be mode 0755")
     validate_deploy_script()
+    validate_staging_compose()
 
 
 def validate_edge_mirror_workflow(path: Path = EDGE_MIRROR_WORKFLOW) -> None:
@@ -139,6 +145,14 @@ def validate_edge_mirror_workflow(path: Path = EDGE_MIRROR_WORKFLOW) -> None:
         raise StagingError("WP-08 edge mirror workflow is incomplete")
     if "\n  push:" in workflow or "\n  pull_request:" in workflow:
         raise StagingError("WP-08 edge mirror must be manual only")
+
+
+def validate_staging_compose(path: Path = STAGING_COMPOSE) -> None:
+    compose = path.read_text()
+    if f"image: {EDGE_IMAGE}" not in compose:
+        raise StagingError("staging edge must use the verified project GHCR digest")
+    if "image: caddy:" in compose or "docker.io/library/caddy" in compose:
+        raise StagingError("staging edge must not pull Caddy from Docker Hub")
 
 
 def validate_deploy_script(path: Path = DEPLOY_SCRIPT) -> None:
