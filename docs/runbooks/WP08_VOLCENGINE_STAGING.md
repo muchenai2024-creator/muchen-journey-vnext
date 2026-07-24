@@ -1,6 +1,6 @@
 # WP-08 火山引擎独立 Staging 运维手册
 
-状态：`ALPHA_PILOT_SECRET_PATH_FIX_READY`。本文仍是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 脚本，不授权 production。Provision 已收敛并冻结，新 RDS CA 已写入 `WP08_RDS_CA_PEM_B64`。应用 `deploy` 不再执行 DNS 对账、Terraform plan/apply 或 CloudControl：只从加密 remote state 读取既有 ECS/RDS 定位值，再用 VPC API 临时添加并撤销当前 runner 的单一 `/32`。run `30026998583` 在 migration 前暴露 release-local secret 与全局路径不一致；发布脚本现统一读取当前 release 的 `secrets/`。migration、容器、TLS 与 browser smoke 仍未成功执行。
+状态：`ALPHA_PILOT_REGISTRY_EGRESS_BLOCKED`。本文仍是 Greenfield vNext 唯一 staging 资源与部署入口；不复用旧 P1 脚本，不授权 production。Provision 已收敛并冻结，新 RDS CA 已写入 `WP08_RDS_CA_PEM_B64`。应用 `deploy` 不执行 DNS 对账、Terraform plan/apply 或 CloudControl：只从加密 remote state 读取既有 ECS/RDS 定位值，再用 VPC API 临时添加并撤销当前 runner 的单一 `/32`。run `30062128087` 已通过 release-local secret 与 Compose 校验，但在 migration 前因 ECS 访问 Docker Hub 拉取固定 Caddy digest 超时停止；SSH 已关闭且未重试。migration、容器、TLS 与 browser smoke 仍未成功执行。
 
 ## 1. 已锁定授权
 

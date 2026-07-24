@@ -1,7 +1,7 @@
 # 26｜WP-08 火山引擎 Staging 实施路径证据
 
 日期：2026-07-24
-状态：`ALPHA_PILOT_SECRET_PATH_FIX_READY`
+状态：`ALPHA_PILOT_REGISTRY_EGRESS_BLOCKED`
 候选：`670661865f708a835997596ed5b74904809564a5`
 整体发布：`NO_GO`
 
@@ -15,14 +15,14 @@
 - 候选三镜像部署引用固定为 WP-07 已核验 GHCR digest；Caddy 镜像固定 digest；
 - deploy bundle 的 secret 文件为 `0600`，私有目录为 `0700`，旧域名/旧部署标识和 `LOCAL_TEST` 被拒绝。
 
-## 当前事实（2026-07-23）
+## 当前事实（2026-07-24）
 
 - 独立 staging 项目中的部分 IAM、VPC、安全组、ECS、RDS/TOS 与 DNS 资源已由唯一受审 workflow 创建或纳管；资源和 remote state 的逐项事实以私有证据为准，公开仓库不记录账号、资源 ID、endpoint、IP、凭据或人员信息；
 - 第二次 provision run `29945430858` 在无 destroy/replacement 的门禁通过后停止；RDS AllowList 与 DNS 查询权限的代码侧修复已由 PR #17 合并到主线 `1791ea6d89a290cf4ff41e5c4a9e27fb64d7213c`，required check 通过；
 - 用户明确授权后已创建并附加全局只读策略 `journey-next-staging-dns-query-record-global`：正文仅允许 `dns:QueryRecord`，资源范围为 `*`，只附加给 `journey-next-staging-ci`，不受项目限制；授权页已反向核验。原 DNS/ECS/RDS/VPC/TOS 服务权限继续限定 `journey-next-staging`，本次未修改其他策略；
 - 第三次 provision run `29974201816` 失败后没有自动重试；DNS state 精确纳管与 RDS 串行修复已由 PR #20 通过 required check 并合入主线 `af6443d9f4d3b25513c840557c9755e78758e092`，没有扩大 IAM；
 - 本轮唯一新 provision run `29994013611` 已成功：DNS 精确 import、`0 add / 4 change / 0 destroy` saved plan、无破坏性门禁和 apply 均通过；应用部署步骤按 phase 正确跳过；
-- 新实例 RDS CA 已取得并写入 GitHub `staging` Environment；Alpha deploy 已移除 DNS/provider/plan/apply 耦合。run `30026998583` 成功读取冻结 state、打开精确 runner `/32` 并准备 bundle，但在 migration 前因发布脚本错误读取全局 secret 路径停止；SSH 已确认关闭且未重试。release-local secret 路径修复与机器测试已就绪；migration、容器、TLS、browser smoke、真实身份和真人 UAT仍为 `NOT_RUN`，整体发布为 `NO_GO`。
+- 新实例 RDS CA 已取得并写入 GitHub `staging` Environment；Alpha deploy 已移除 DNS/provider/plan/apply 耦合。run `30062128087` 使用已修复路径通过冻结 state、精确 runner `/32`、私有 bundle、release-local secret 与 Compose 校验，但 ECS 访问 Docker Hub 拉取固定 Caddy digest 时以网络超时停止；全镜像 pull 位于 migration 前，因此未观察到 migration、seed 或容器启动。TLS/browser smoke 被跳过，SSH 已确认关闭且未重试；真实身份和真人 UAT 仍为 `NOT_RUN`，整体发布为 `NO_GO`。
 
 ## 2026-07-22 路径设计时未发生（历史快照）
 
@@ -162,3 +162,11 @@
 - 外部 TLS 被跳过，`always()` 已确认 runner SSH 规则为关闭态；未运行 migration、seed 或容器，未自动重试。失败 release 目录可能保留 root-only bundle，后续清理属于新的受控操作；
 - 最小修复只把 `SECRETS` 指向当前 release 的 `$PWD/secrets`，并由 staging 校验测试锁定该合同；不新增 workflow、资源、IAM、secret 或依赖。新的 Alpha deploy 仍需独立精确授权。
 - 合入修复后的离线审计进一步发现原顺序会在确认 Web、Worker 与 Edge 镜像可拉取前执行数据库迁移；发布脚本现先运行 Compose 合并配置校验并拉取全部固定 digest，再允许 migration。该调整没有云端写入，也没有消费新的 deploy 授权。
+
+## 2026-07-24 Alpha Registry Egress 失败
+
+- 用户重新精确授权候选 `670661865f708a835997596ed5b74904809564a5` 在 staging 只执行一次 Alpha `phase=deploy`，失败不重试；唯一 run [`30062128087`](https://github.com/muchenai2024-creator/muchen-journey-vnext/actions/runs/30062128087) 使用主线 `a4bf1775e0de25d10dc17b678421e2dae500101c`；
+- 候选合同、预算、加密 state 初始化、冻结基础设施输出、精确 runner `/32`、私有 bundle、release-local secret 与 Compose 合并校验均通过；DNS reconcile 与 Terraform plan/apply 按 deploy phase 跳过；
+- 预迁移 `docker compose pull` 在解析 Docker Hub 上固定 Caddy digest 时因 HTTPS 连接超时失败。该失败不是候选 GHCR 三镜像、IAM、CloudControl、RDS 或应用运行错误；
+- 日志未观察到 migration、runtime grant、seed、容器启动或部署成功标记；外部 TLS 验证被跳过。`always()` 步骤输出 `WP08_SSH_INGRESS=CLOSED`，run 终态为 failure，随后没有活动 staging run；
+- 本次授权已消费且没有重试。状态保持 `ALPHA_PILOT_REGISTRY_EGRESS_BLOCKED`，候选 deployment、真实身份和真人 UAT继续为 `NOT_RUN`，整体发布继续为 `NO_GO`。
