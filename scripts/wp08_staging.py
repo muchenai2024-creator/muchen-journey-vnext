@@ -116,6 +116,7 @@ def validate_files() -> None:
         "deploy/staging/deploy.sh",
         "scripts/wp08_plan_guard.py",
         "scripts/wp08_dns_record.py",
+        "scripts/wp08_rds_network_audit.py",
         "scripts/wp08_security_group.py",
         ".github/workflows/wp08-edge-mirror.yml",
     ]
@@ -316,8 +317,11 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
     validate_infrastructure()
     workflow = path.read_text()
     required = (
-        "- provision\n          - deploy",
+        "- audit\n          - provision\n          - deploy",
+        "inputs.confirmation == 'AUDIT_WP08_RDS_NETWORK'",
         "id: terraform_init",
+        "if: inputs.phase == 'audit'",
+        "scripts/wp08_rds_network_audit.py",
         "if: inputs.phase == 'provision'",
         "id: frozen_infrastructure",
         "terraform output -raw staging_public_ip",
@@ -339,10 +343,14 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
         raise StagingError("staging workflow deploy-only step count must be exactly 5")
     if workflow.count("if: inputs.phase == 'provision'") != 2:
         raise StagingError("staging workflow provision-only step count must be exactly 2")
+    if workflow.count("if: inputs.phase == 'audit'") != 1:
+        raise StagingError("staging workflow audit-only step count must be exactly 1")
     if workflow.count("scripts/wp08_plan_guard.py") != 1:
         raise StagingError("every WP-08 apply path must have one destructive-plan guard")
     if workflow.count("scripts/wp08_dns_record.py") != 1:
         raise StagingError("WP-08 must identify the existing DNS record exactly once")
+    if workflow.count("scripts/wp08_rds_network_audit.py") != 1:
+        raise StagingError("WP-08 must audit the frozen RDS network binding exactly once")
     if workflow.count('terraform import "$address" "$expected_id"') != 1:
         raise StagingError("WP-08 DNS reconciliation must have exactly one import path")
     if workflow.count("terraform state pull | jq -er") != 1:
@@ -374,7 +382,15 @@ def validate_workflow(path: Path = WORKFLOW) -> None:
     for forbidden in ("terraform plan", "terraform apply", "terraform import", "wp08_dns_record.py"):
         if forbidden in frozen_step:
             raise StagingError("Alpha pilot deploy must not reconcile infrastructure")
-    print("WP08_STAGING_WORKFLOW=PASS phases=provision,frozen-alpha-deploy")
+    audit_step_start = workflow.find("- name: Audit frozen ECS to RDS allowlist binding")
+    audit_step_end = workflow.find("\n      - name:", audit_step_start + 1)
+    if audit_step_start < 0 or audit_step_end < 0:
+        raise StagingError("staging read-only RDS network audit step is missing")
+    audit_step = workflow[audit_step_start:audit_step_end]
+    for forbidden in ("terraform plan", "terraform apply", "terraform import", "wp08_security_group"):
+        if forbidden in audit_step:
+            raise StagingError("RDS network audit must remain read-only")
+    print("WP08_STAGING_WORKFLOW=PASS phases=audit,provision,frozen-alpha-deploy")
 
 
 def command_output(*args: str) -> str:

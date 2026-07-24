@@ -268,9 +268,15 @@ def test_workflow_requires_guard_before_each_saved_plan_apply(tmp_path: Path, mo
     workflow = tmp_path / "staging.yml"
     source = "\n".join(
         (
-            "- provision",
+            "- audit",
+            "          - provision",
             "          - deploy",
+            "inputs.confirmation == 'AUDIT_WP08_RDS_NETWORK'",
             "id: terraform_init",
+            "      - name: Audit frozen ECS to RDS allowlist binding",
+            "        if: inputs.phase == 'audit'",
+            "terraform state pull >\"$state_file\"",
+            "scripts/wp08_rds_network_audit.py",
             "      - name: Reconcile the exact existing staging DNS record",
             "        if: inputs.phase == 'provision'",
             "scripts/wp08_dns_record.py",
