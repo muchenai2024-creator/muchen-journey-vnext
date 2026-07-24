@@ -86,6 +86,10 @@ resource "volcenginecc_rdspostgresql_allow_list" "app" {
     },
   ]
 
+  # AssociateEcsIp snapshots the security group's attached ECS main-NIC IPs.
+  # Do not create the allowlist before the staging ECS has joined the group.
+  depends_on = [volcenginecc_ecs_instance.app]
+
   lifecycle {
     # volcenginecc 0.0.57 models this value as SetNestedAttribute with
     # computed children. Updating an existing AssociateEcsIp binding makes

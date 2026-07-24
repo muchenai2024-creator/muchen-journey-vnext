@@ -246,6 +246,8 @@ def validate_infrastructure() -> None:
     if allowlist_start < 0 or allowlist_end < 0:
         raise StagingError("staging RDS allowlist resource is missing")
     allowlist = main[allowlist_start:allowlist_end]
+    if "depends_on = [volcenginecc_ecs_instance.app]" not in allowlist:
+        raise StagingError("RDS allowlist must wait for the ECS security-group attachment")
     if re.search(r"\bip_list\s*=", allowlist):
         raise StagingError("AssociateEcsIp allowlist binding must not configure ip_list")
     if not re.search(
