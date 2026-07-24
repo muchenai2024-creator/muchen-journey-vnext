@@ -94,8 +94,78 @@ def test_frozen_state_and_live_allowlist_must_match_exactly():
 
     stale = allowlist_detail()
     stale["AssociatedInstances"][0]["IsLatest"] = False
-    with pytest.raises(audit.NetworkAuditError, match="not synchronized"):
+    with pytest.raises(audit.NetworkAuditPending, match="not synchronized"):
         audit.validate_detail(stale, facts)
+
+    invalid = allowlist_detail()
+    del invalid["AssociatedInstances"][0]["IsLatest"]
+    with pytest.raises(audit.NetworkAuditError, match="flag is missing or invalid"):
+        audit.validate_detail(invalid, facts)
+
+
+def test_read_only_audit_waits_for_instance_propagation(monkeypatch):
+    stale = allowlist_detail()
+    stale["AssociatedInstances"][0]["IsLatest"] = False
+    responses = iter([stale, allowlist_detail()])
+    sleeps = []
+    monkeypatch.setattr(
+        audit,
+        "request_detail",
+        lambda *_args, **_kwargs: next(responses),
+    )
+
+    poll_count = audit.wait_for_synchronized_detail(
+        audit.state_facts(terraform_state()),
+        "access-key",
+        "secret-key",
+        attempts=2,
+        interval_seconds=3,
+        sleeper=sleeps.append,
+    )
+
+    assert poll_count == 2
+    assert sleeps == [3]
+
+
+def test_read_only_audit_fails_closed_after_bounded_wait(monkeypatch):
+    stale = allowlist_detail()
+    stale["AssociatedInstances"][0]["IsLatest"] = False
+    monkeypatch.setattr(
+        audit,
+        "request_detail",
+        lambda *_args, **_kwargs: stale,
+    )
+
+    with pytest.raises(audit.NetworkAuditError, match="bounded audit window"):
+        audit.wait_for_synchronized_detail(
+            audit.state_facts(terraform_state()),
+            "access-key",
+            "secret-key",
+            attempts=2,
+            interval_seconds=3,
+            sleeper=lambda _seconds: None,
+        )
+
+
+def test_read_only_audit_does_not_wait_on_a_structural_mismatch(monkeypatch):
+    wrong_ip = allowlist_detail("10.88.10.24/32")
+    sleeps = []
+    monkeypatch.setattr(
+        audit,
+        "request_detail",
+        lambda *_args, **_kwargs: wrong_ip,
+    )
+
+    with pytest.raises(audit.NetworkAuditError, match="does not match"):
+        audit.wait_for_synchronized_detail(
+            audit.state_facts(terraform_state()),
+            "access-key",
+            "secret-key",
+            attempts=2,
+            interval_seconds=3,
+            sleeper=sleeps.append,
+        )
+    assert sleeps == []
 
 
 def test_state_parser_is_scoped_to_the_staging_primary_nic():
@@ -140,6 +210,7 @@ def test_audit_output_is_identifier_and_ip_free(tmp_path, monkeypatch, capsys):
     output = capsys.readouterr().out
     assert output.strip() == (
         "WP08_RDS_NETWORK_AUDIT=PASS ecs_private_ip_count=1 "
+        "detail_poll_count=1 "
         "allowlist_match=true instance_association=true "
         "vpc_match=true allowlist_latest=true"
     )

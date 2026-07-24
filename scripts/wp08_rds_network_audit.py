@@ -9,6 +9,8 @@ import json
 import os
 import re
 import sys
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -23,10 +25,16 @@ API_SERVICE = "rds_postgresql"
 API_VERSION = "2022-01-01"
 STAGING_SUBNET = ipaddress.ip_network("10.88.10.0/24")
 IDENTIFIER = re.compile(r"^[A-Za-z][A-Za-z0-9-]{7,80}$")
+SYNC_POLL_ATTEMPTS = 7
+SYNC_POLL_INTERVAL_SECONDS = 10.0
 
 
 class NetworkAuditError(RuntimeError):
     pass
+
+
+class NetworkAuditPending(NetworkAuditError):
+    """The allowlist is valid but has not reached its bound instance yet."""
 
 
 @dataclass(frozen=True)
@@ -210,8 +218,45 @@ def validate_detail(detail: dict[str, object], facts: StateFacts) -> None:
         raise NetworkAuditError("RDS allowlist is not associated with the staging instance")
     if matches[0].get("VPC") != facts.vpc_id:
         raise NetworkAuditError("RDS allowlist instance is not in the staging VPC")
-    if matches[0].get("IsLatest") is not True:
-        raise NetworkAuditError("RDS allowlist is not synchronized to the staging instance")
+    is_latest = matches[0].get("IsLatest")
+    if is_latest is False:
+        raise NetworkAuditPending("RDS allowlist is not synchronized to the staging instance")
+    if is_latest is not True:
+        raise NetworkAuditError("RDS allowlist synchronization flag is missing or invalid")
+
+
+def wait_for_synchronized_detail(
+    facts: StateFacts,
+    access_key: str,
+    secret_key: str,
+    *,
+    session_token: str = "",
+    attempts: int = SYNC_POLL_ATTEMPTS,
+    interval_seconds: float = SYNC_POLL_INTERVAL_SECONDS,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> int:
+    """Poll the read-only detail endpoint while instance propagation is pending."""
+    if attempts < 1:
+        raise ValueError("attempts must be positive")
+    for attempt in range(1, attempts + 1):
+        detail = request_detail(
+            facts.allow_list_id,
+            access_key,
+            secret_key,
+            session_token=session_token,
+        )
+        try:
+            validate_detail(detail, facts)
+        except NetworkAuditPending as error:
+            if attempt == attempts:
+                raise NetworkAuditError(
+                    "RDS allowlist did not synchronize to the staging instance "
+                    "within the bounded audit window"
+                ) from error
+            sleeper(interval_seconds)
+            continue
+        return attempt
+    raise AssertionError("unreachable")
 
 
 def audit(state_path: Path) -> None:
@@ -226,16 +271,16 @@ def audit(state_path: Path) -> None:
     if not isinstance(state, dict):
         raise NetworkAuditError("frozen Terraform state must be an object")
     facts = state_facts(state)
-    detail = request_detail(
-        facts.allow_list_id,
+    poll_count = wait_for_synchronized_detail(
+        facts,
         access_key,
         secret_key,
         session_token=os.environ.get("VOLCENGINE_SESSION_TOKEN", ""),
     )
-    validate_detail(detail, facts)
     print(
         "WP08_RDS_NETWORK_AUDIT=PASS"
         f" ecs_private_ip_count={len(facts.private_ips)}"
+        f" detail_poll_count={poll_count}"
         " allowlist_match=true instance_association=true"
         " vpc_match=true allowlist_latest=true"
     )
