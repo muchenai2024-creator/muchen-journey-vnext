@@ -253,13 +253,13 @@ jobs:
 
   greenfield_authorize:
     if: >-
-      inputs.candidate == '327a71a7078f0b11df3984fd75705a58363d11b6' &&
-      ((inputs.phase == 'greenfield-canary-fast' && inputs.confirmation == 'FAST_CANARY_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-preflight' && inputs.confirmation == 'PREFLIGHT_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-backup-restore' && inputs.confirmation == 'BACKUP_RESTORE_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-deploy' && inputs.confirmation == 'DEPLOY_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-inspect' && inputs.confirmation == 'INSPECT_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-rollback' && inputs.confirmation == 'ROLLBACK_327A71A_TO_FF53052'))
+      inputs.candidate == '0e86352d109fd49c7e4f4fc26d36a14822dc7219' &&
+      ((inputs.phase == 'greenfield-canary-fast' && inputs.confirmation == 'FAST_CANARY_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-preflight' && inputs.confirmation == 'PREFLIGHT_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-backup-restore' && inputs.confirmation == 'BACKUP_RESTORE_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-deploy' && inputs.confirmation == 'DEPLOY_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-inspect' && inputs.confirmation == 'INSPECT_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-rollback' && inputs.confirmation == 'ROLLBACK_0E86352_TO_FF53052'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -397,13 +397,13 @@ jobs:
       needs.greenfield_authorize.outputs.reviewed_ops_commit_sha == github.sha &&
       needs.greenfield_authorize.outputs.reviewed_ops_ref == github.ref &&
       needs.greenfield_execution_authorize.outputs.execution_authorization_sha256 == inputs.execution_authorization_sha256 &&
-      inputs.candidate == '327a71a7078f0b11df3984fd75705a58363d11b6' &&
-      ((inputs.phase == 'greenfield-canary-fast' && inputs.confirmation == 'FAST_CANARY_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-preflight' && inputs.confirmation == 'PREFLIGHT_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-backup-restore' && inputs.confirmation == 'BACKUP_RESTORE_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-deploy' && inputs.confirmation == 'DEPLOY_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-inspect' && inputs.confirmation == 'INSPECT_327A71A_PRODUCTION_CANARY') ||
-      (inputs.phase == 'greenfield-rollback' && inputs.confirmation == 'ROLLBACK_327A71A_TO_FF53052'))
+      inputs.candidate == '0e86352d109fd49c7e4f4fc26d36a14822dc7219' &&
+      ((inputs.phase == 'greenfield-canary-fast' && inputs.confirmation == 'FAST_CANARY_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-preflight' && inputs.confirmation == 'PREFLIGHT_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-backup-restore' && inputs.confirmation == 'BACKUP_RESTORE_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-deploy' && inputs.confirmation == 'DEPLOY_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-inspect' && inputs.confirmation == 'INSPECT_0E86352_PRODUCTION_CANARY') ||
+      (inputs.phase == 'greenfield-rollback' && inputs.confirmation == 'ROLLBACK_0E86352_TO_FF53052'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production-canary-uat
@@ -489,14 +489,14 @@ jobs:
       - name: Download exact registry-bound candidate evidence
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          name: wp07-candidate-327a71a7078f0b11df3984fd75705a58363d11b6
+          name: wp07-candidate-0e86352d109fd49c7e4f4fc26d36a14822dc7219
           path: artifacts/wp31-candidate
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 33965281337
+          run-id: 33977154714
       - name: Verify exact registry-bound package after both authorization Gates
         run: |
           set -euo pipefail
-          test '${{ inputs.candidate }}' = 327a71a7078f0b11df3984fd75705a58363d11b6
+          test '${{ inputs.candidate }}' = 0e86352d109fd49c7e4f4fc26d36a14822dc7219
           python3 scripts/wp31_greenfield_canary.py package-check \
             --manifest artifacts/wp31-candidate/release-manifest.json
       - name: Download exact preflight evidence before infrastructure access
@@ -539,7 +539,7 @@ jobs:
           assert value["run_id"] == sys.argv[2]
           assert value["preflight_run_id"] == sys.argv[3]
           assert value["ops_manifest_sha256"] == sys.argv[4]
-          assert value["candidate_sha"] == "327a71a7078f0b11df3984fd75705a58363d11b6"
+          assert value["candidate_sha"] == "0e86352d109fd49c7e4f4fc26d36a14822dc7219"
           assert value["isolated_canary_database"] == "journey_next_canary_20260901_c72fea5"
           assert value["backup"] == value["restore"] == "PASS"
           assert value["source_modified"] is False
@@ -603,7 +603,7 @@ jobs:
         id: open_ssh
         run: |
           set -euo pipefail
-          runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\r\n')
+          runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\n')
           python3 - "$runner_ip" <<'PY'
           import ipaddress, sys
           ipaddress.IPv4Address(sys.argv[1])
@@ -833,8 +833,8 @@ jobs:
           remote="/srv/journey-next-production/canary/restore-runs/$GITHUB_RUN_ID"
           tar -C "$bundle" -czf - request.json wp31_identity_bootstrap.py | ssh "${opts[@]}" root@"$PUBLIC_IP" "tar -xzf - -C '$remote'"
           printf '%s' "$GHCR_TOKEN" | ssh "${opts[@]}" root@"$PUBLIC_IP" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin >/dev/null"
-          image='ghcr.io/muchenai/muchen-journey-vnext-api@sha256:7171a6acf33e347b965c70908b8d75bd4bbeb29d6565a42785c8ad84cab64c75'
-          ssh "${opts[@]}" root@"$PUBLIC_IP" "docker pull '$image' >/dev/null && docker run --rm --network host --env-file '$remote/secrets/target-facts.env' -v '$remote/wp31_identity_bootstrap.py:/tmp/wp31_identity_bootstrap.py:ro' -v '$remote/request.json:/tmp/request.json:ro' -v '$remote/secrets/volcengine-rds-ca.pem:/run/secrets/volcengine-rds-ca.pem:ro' '$image' python /tmp/wp31_identity_bootstrap.py --database-kind canary --request /tmp/request.json --confirm BOOTSTRAP_IDENTITIES_327A71A_PRODUCTION_CANARY >'$remote/identity-result.json'"
+          image='ghcr.io/muchenai/muchen-journey-vnext-api@sha256:01e74f77faf364e65d157403262676f19d98f4862cd5ee0a80396fac91a7bce8'
+          ssh "${opts[@]}" root@"$PUBLIC_IP" "docker pull '$image' >/dev/null && docker run --rm --network host --env-file '$remote/secrets/target-facts.env' -v '$remote/wp31_identity_bootstrap.py:/tmp/wp31_identity_bootstrap.py:ro' -v '$remote/request.json:/tmp/request.json:ro' -v '$remote/secrets/volcengine-rds-ca.pem:/run/secrets/volcengine-rds-ca.pem:ro' '$image' python /tmp/wp31_identity_bootstrap.py --database-kind canary --request /tmp/request.json --confirm BOOTSTRAP_IDENTITIES_0E86352_PRODUCTION_CANARY >'$remote/identity-result.json'"
           scp "${opts[@]}" root@"$PUBLIC_IP":"$remote/identity-result.json" "$RUNNER_TEMP/identity-result.json"
           python3 - "$RUNNER_TEMP/identity-result.json" <<'PY'
           import json,sys
@@ -879,7 +879,7 @@ jobs:
           ready=$(curl -fsS --connect-timeout 3 --max-time 10 https://journey.muchenai.com/health/ready)
           python3 - "$ready" <<'PY'
           import json, sys
-          assert json.loads(sys.argv[1]) == {"status": "ready", "release": "327a71a7078f0b11df3984fd75705a58363d11b6"}
+          assert json.loads(sys.argv[1]) == {"status": "ready", "release": "0e86352d109fd49c7e4f4fc26d36a14822dc7219"}
           PY
           opts=(-i "$RUNNER_TEMP/wp31-key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$RUNNER_TEMP/wp31-known-hosts")
           ssh "${opts[@]}" root@"$PUBLIC_IP" 'set -e; release=$(readlink -f /srv/journey-next-production/canary/current); cd "$release"; test "$(docker compose -f compose.canary.yaml config --services | tr "\n" ",")" = api,web,; docker compose -f compose.canary.yaml ps --status running --services | sort | diff -u <(printf "api\nweb\n") -'
@@ -888,7 +888,7 @@ jobs:
             install -d -m 0700 "$proof"
             python3 - "$proof/deploy-facts.json" <<'PY'
           import json,sys
-          value={"public_release":"327a71a7078f0b11df3984fd75705a58363d11b6","services":["api","web"],"worker_started":False,"release_go":False}
+          value={"public_release":"0e86352d109fd49c7e4f4fc26d36a14822dc7219","services":["api","web"],"worker_started":False,"release_go":False}
           open(sys.argv[1],"x").write(json.dumps(value,sort_keys=True)+"\n")
           PY
             WP15_BACKUP_KEY="$WP15_BACKUP_KEY" python3 scripts/wp31_phase_evidence.py create \
@@ -938,7 +938,7 @@ jobs:
               rm -f -- /srv/journey-next-production/canary/current
             fi
             install -d -m 0700 /srv/journey-next-production/canary/failures
-            printf '%s\n' '{\"candidate_sha\":\"327a71a7078f0b11df3984fd75705a58363d11b6\",\"automatic_rollback\":\"ATTEMPTED\",\"database_preserved\":true,\"release_evidence_preserved\":true}' >'/srv/journey-next-production/canary/failures/$GITHUB_RUN_ID.workflow.json'
+            printf '%s\n' '{\"candidate_sha\":\"0e86352d109fd49c7e4f4fc26d36a14822dc7219\",\"automatic_rollback\":\"ATTEMPTED\",\"database_preserved\":true,\"release_evidence_preserved\":true}' >'/srv/journey-next-production/canary/failures/$GITHUB_RUN_ID.workflow.json'
             chmod 0600 '/srv/journey-next-production/canary/failures/$GITHUB_RUN_ID.workflow.json'
           "
           ready=$(curl -fsS --connect-timeout 3 --max-time 10 https://journey.muchenai.com/health/ready)
@@ -1078,7 +1078,7 @@ jobs:
         id: open_identity_ssh
         run: |
           set -euo pipefail
-          runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\r\n')
+          runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\n')
           python3 -c 'import ipaddress,sys; ipaddress.IPv4Address(sys.argv[1])' "$runner_ip"
           echo "WP31_RUNNER_CIDR=$runner_ip/32" >>"$GITHUB_ENV"
           python3 -m scripts.wp08_security_group open --security-group-id '${{ steps.frozen_identity.outputs.security_group_id }}' --cidr "$runner_ip/32"
@@ -1122,8 +1122,8 @@ jobs:
           ssh "${opts[@]}" root@"$PUBLIC_IP" "test ! -e '$remote' && install -d -m 0700 '$remote'"
           tar -C "$bundle" -czf - . | ssh "${opts[@]}" root@"$PUBLIC_IP" "tar -xzf - -C '$remote'"
           printf '%s' "$GHCR_TOKEN" | ssh "${opts[@]}" root@"$PUBLIC_IP" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin >/dev/null"
-          image='ghcr.io/muchenai/muchen-journey-vnext-api@sha256:7171a6acf33e347b965c70908b8d75bd4bbeb29d6565a42785c8ad84cab64c75'
-          ssh "${opts[@]}" root@"$PUBLIC_IP" "docker pull '$image' >/dev/null && docker run --rm --network host --env-file '$remote/secrets/source-facts.env' -v '$remote/wp31_identity_bootstrap.py:/tmp/wp31_identity_bootstrap.py:ro' -v '$remote/request.json:/tmp/request.json:ro' -v '$remote/secrets/volcengine-rds-ca.pem:/run/secrets/volcengine-rds-ca.pem:ro' '$image' python /tmp/wp31_identity_bootstrap.py --request /tmp/request.json --confirm BOOTSTRAP_IDENTITIES_327A71A_PRODUCTION_CANARY >'$remote/result.json'"
+          image='ghcr.io/muchenai/muchen-journey-vnext-api@sha256:01e74f77faf364e65d157403262676f19d98f4862cd5ee0a80396fac91a7bce8'
+          ssh "${opts[@]}" root@"$PUBLIC_IP" "docker pull '$image' >/dev/null && docker run --rm --network host --env-file '$remote/secrets/source-facts.env' -v '$remote/wp31_identity_bootstrap.py:/tmp/wp31_identity_bootstrap.py:ro' -v '$remote/request.json:/tmp/request.json:ro' -v '$remote/secrets/volcengine-rds-ca.pem:/run/secrets/volcengine-rds-ca.pem:ro' '$image' python /tmp/wp31_identity_bootstrap.py --request /tmp/request.json --confirm BOOTSTRAP_IDENTITIES_0E86352_PRODUCTION_CANARY >'$remote/result.json'"
           scp "${opts[@]}" root@"$PUBLIC_IP":"$remote/result.json" "$RUNNER_TEMP/wp31-identity-result.json"
           python3 - "$RUNNER_TEMP/wp31-identity-result.json" <<'PY'
           import json,sys
@@ -1317,7 +1317,7 @@ jobs:
       - name: Open bounded SSH ingress
         run: |
           set -euo pipefail
-          runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\r\n')
+          runner_ip=$(curl -fsS https://checkip.amazonaws.com | tr -d '\n')
           python3 - "$runner_ip" <<'PY'
           import ipaddress
           import sys
